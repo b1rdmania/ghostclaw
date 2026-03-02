@@ -26,27 +26,34 @@ If you're already an advanced Claude Code user and want an agent that runs wild 
 - **Layer any Claude Code skill onto your bot** — anything you can do in Claude Code, you can add to your agent. NanoClaw skills, OpenClaw skills, or your own. Every install is automatically security-scanned.
 - **Fully modifiable from Claude Code** — every behaviour, every personality file, every integration. Customise exactly the way you already work.
 
-## Quick start
+## Install
 
-Buy a Mac Mini (or use any dedicated Mac/Linux machine). Set up fresh accounts — iCloud, Gmail, GitHub, whatever you want the agent to have access to.
+On the machine you want your agent to live on, open a terminal and install [Claude Code](https://claude.ai/download) if you haven't already:
+
+```bash
+npm install -g @anthropic-ai/claude-code
+```
+
+Then:
 
 ```bash
 git clone https://github.com/ziggythebot/ghostclaw.git
 cd ghostclaw
 npm install
+claude
 ```
 
-Open [Claude Code](https://claude.ai/download) and run:
+Inside Claude Code, type:
 
 ```
 /setup-ghostclaw
 ```
 
-It walks you through everything: authentication, Telegram bot setup, personality building, and getting the service running. You'll need a couple of API keys (Claude, optionally OpenAI for voice) and to create a Telegram bot via @BotFather. About 10 minutes.
+That's it. The wizard handles everything — API keys, Telegram bot, personality, background service. About 10 minutes.
 
 ## Adding skills
 
-Skills work exactly like Claude Code customisations. Run a command, it gets wired in:
+Once running, add capabilities by typing commands in Claude Code:
 
 | Command | What it adds |
 |---------|-------------|
@@ -58,7 +65,7 @@ Skills work exactly like Claude Code customisations. Run a command, it gets wire
 | `/add-slack` | Slack as an additional channel |
 | `/add-telegram-swarm` | Multi-bot agent teams |
 
-Skills are security-scanned before installation. Build your own using the same `CLAUDE.md` + manifest pattern. Because GhostClaw inherits NanoClaw's skill layer, it's compatible with the broader Claw ecosystem.
+Skills are security-scanned before installation. Build your own or pull from the NanoClaw/OpenClaw ecosystem — they're compatible.
 
 ## The soul system
 
@@ -70,7 +77,7 @@ A group chat with friends might say:
 
 > Be casual and funny. Only respond when mentioned. Keep it short.
 
-Edit the file, the personality changes instantly. The setup wizard builds your initial soul automatically — it asks how you like to communicate and what annoys you about AI responses.
+Edit the file, the personality changes instantly. The setup wizard builds your initial soul automatically.
 
 ## How it works
 
@@ -97,15 +104,15 @@ All config lives in `.env`. The setup wizard creates this for you.
 
 *One of `CLAUDE_CODE_OAUTH_TOKEN` or `ANTHROPIC_API_KEY` is required.
 
-## Running as a service
+## Service management
 
 The setup wizard configures this automatically. For manual control:
 
 **macOS:**
 ```bash
-launchctl load ~/Library/LaunchAgents/com.ghostclaw.plist
-launchctl unload ~/Library/LaunchAgents/com.ghostclaw.plist
-launchctl kickstart -k gui/$(id -u)/com.ghostclaw  # restart
+launchctl load ~/Library/LaunchAgents/com.ghostclaw.plist     # start
+launchctl unload ~/Library/LaunchAgents/com.ghostclaw.plist   # stop
+launchctl kickstart -k gui/$(id -u)/com.ghostclaw             # restart
 ```
 
 **Linux:**
@@ -117,8 +124,7 @@ systemctl --user restart ghostclaw
 ## Updating
 
 ```bash
-git pull
-npm run build
+git pull && npm run build
 launchctl kickstart -k gui/$(id -u)/com.ghostclaw  # macOS
 # systemctl --user restart ghostclaw                # Linux
 ```
@@ -131,7 +137,7 @@ Your Claude subscription (Max or API) and optionally OpenAI for voice (~$0.006/m
 
 **Is this secure?**
 
-The bot has full access to its machine. That's the point — don't run this on a machine with data it shouldn't see. Run it on dedicated hardware with fresh accounts. Skills are security-scanned before installation.
+The bot has full access to its machine. That's the point — run it on dedicated hardware with fresh accounts, not your daily driver. Skills are security-scanned before installation.
 
 **What's the relationship to NanoClaw and OpenClaw?**
 
