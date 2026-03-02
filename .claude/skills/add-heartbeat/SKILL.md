@@ -28,7 +28,6 @@ Run these checks periodically. Only message the user if something needs attentio
 
 - [ ] **GhostClaw errors**: `tail -20 ~/nanoclaw/logs/ghostclaw.error.log` — alert if non-empty in the last hour
 - [ ] **Disk space**: `df -h /` — alert if usage >80%
-- [ ] **Unread emails**: Check Gmail for unread emails in the last hour — summarise if any look urgent
 
 ## Rules
 
