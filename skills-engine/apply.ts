@@ -31,11 +31,30 @@ import {
   mergeNpmDependencies,
   runNpmInstall,
 } from './structured.js';
+import { scanSkill, formatScanReport } from './security-scan.js';
 import { ApplyResult } from './types.js';
 
 export async function applySkill(skillDir: string): Promise<ApplyResult> {
   const projectRoot = process.cwd();
   const manifest = readManifest(skillDir);
+
+  // --- Security scan ---
+  const scan = scanSkill(skillDir);
+  const critical = scan.findings.filter((f) => f.severity === 'critical');
+  if (critical.length > 0) {
+    console.log(formatScanReport(scan));
+    return {
+      success: false,
+      skill: manifest.skill,
+      version: manifest.version,
+      error: `Security scan found ${critical.length} critical issue(s). Review the report above. Use --skip-scan to bypass (not recommended).`,
+    };
+  }
+  // Print non-critical findings as info
+  const nonCritical = scan.findings.filter((f) => f.severity !== 'critical');
+  if (nonCritical.length > 0) {
+    console.log(formatScanReport(scan));
+  }
 
   // --- Pre-flight checks ---
   const currentState = readState(); // Validates state exists and version is compatible

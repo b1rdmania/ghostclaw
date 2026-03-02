@@ -34,6 +34,8 @@ export {
 export { rebase } from './rebase.js';
 export { findSkillDir, replaySkills } from './replay.js';
 export type { ReplayOptions, ReplayResult } from './replay.js';
+export { scanSkill, formatScanReport } from './security-scan.js';
+export type { ScanSummary, ScanFinding, Severity } from './security-scan.js';
 export { uninstallSkill } from './uninstall.js';
 export { initSkillsSystem, migrateExisting } from './migrate.js';
 export {
