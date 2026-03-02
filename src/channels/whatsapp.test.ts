@@ -536,7 +536,7 @@ describe('WhatsAppChannel', () => {
       );
     });
 
-    it('handles message with no extractable text (e.g. voice note without caption)', async () => {
+    it('transcribes voice notes and delivers as [Voice: ...] content', async () => {
       const opts = createTestOpts();
       const channel = new WhatsAppChannel(opts);
 
@@ -558,8 +558,15 @@ describe('WhatsAppChannel', () => {
         },
       ]);
 
-      // Skipped — no text content to process
-      expect(opts.onMessage).not.toHaveBeenCalled();
+      // Voice messages are transcribed and delivered with [Voice: ...] prefix
+      expect(opts.onMessage).toHaveBeenCalledWith(
+        'registered@g.us',
+        expect.objectContaining({
+          id: 'msg-8',
+          sender_name: 'Frank',
+          content: expect.stringMatching(/^\[Voice: /),
+        }),
+      );
     });
 
     it('uses sender JID when pushName is absent', async () => {
