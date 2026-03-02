@@ -100,11 +100,15 @@ GhostClaw uses NanoClaw's skill system. Skills are scanned for security issues b
 |-------|-------------|
 | `/add-heartbeat` | Periodic health checks (disk, logs, email) |
 | `/add-morning-briefing` | Scheduled daily/weekly briefings |
-| `/add-gmail-agent` | Gmail read/send via MCP |
+| `/add-gmail-agent` | Email read/send via MCP (Gmail, Outlook, or any IMAP) |
 | `/add-update-check` | Weekly check for GhostClaw updates |
 | `/add-slack` | Slack as additional channel |
 | `/add-discord` | Discord as additional channel |
 | `/add-telegram-swarm` | Multi-bot agent teams in Telegram |
+
+### Email integration
+
+Email is optional — not core functionality. But it's fun to have the bot read verification codes, check for urgent messages, or send summaries. Gmail is the easiest setup (OAuth MCP server), but any email provider with IMAP or an MCP server works. See `/add-gmail-agent` for details.
 
 ### Security scanning
 
@@ -213,6 +217,10 @@ Yes. Agents have full host access. That's the point — don't run this on a mach
 **Can I use other models?**
 
 Set `ANTHROPIC_BASE_URL` and `ANTHROPIC_AUTH_TOKEN` in `.env` for any Anthropic-compatible endpoint.
+
+**Why do I see `NANOCLAW_*` in the code?**
+
+GhostClaw keeps NanoClaw's internal variable names (`NANOCLAW_GROUP_DIR`, `.nanoclaw/` state directory) so that skills from the NanoClaw ecosystem work without modification. User-facing names are all GhostClaw.
 
 **How do I build my own skills?**
 
