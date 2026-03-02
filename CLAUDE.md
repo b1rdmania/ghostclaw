@@ -4,7 +4,9 @@ Personal Claude assistant. See [README.md](README.md) for philosophy and setup. 
 
 ## Quick Context
 
-Single Node.js process that connects to WhatsApp, routes messages to Claude Agent SDK running in containers (Linux VMs). Each group has isolated filesystem and memory.
+Single Node.js process that connects to WhatsApp, routes messages to Claude Agent SDK running as **direct Node.js child processes** (no containers). Each group has isolated filesystem and memory.
+
+**IMPORTANT: Containerization has been removed.** Agents run directly on the host machine. The `container-runner.ts` spawns `node` processes instead of Docker containers, passing paths via environment variables (`NANOCLAW_GROUP_DIR`, `NANOCLAW_IPC_DIR`, `NANOCLAW_GLOBAL_DIR`). The `container-runtime.ts` and `mount-security.ts` modules are no-ops. This is intentional — the Mac Mini is a dedicated bot machine.
 
 ## Key Files
 
@@ -15,7 +17,7 @@ Single Node.js process that connects to WhatsApp, routes messages to Claude Agen
 | `src/ipc.ts` | IPC watcher and task processing |
 | `src/router.ts` | Message formatting and outbound routing |
 | `src/config.ts` | Trigger pattern, paths, intervals |
-| `src/container-runner.ts` | Spawns agent containers with mounts |
+| `src/container-runner.ts` | Spawns agent as direct Node.js processes (no Docker) |
 | `src/task-scheduler.ts` | Runs scheduled tasks |
 | `src/db.ts` | SQLite operations |
 | `groups/{name}/CLAUDE.md` | Per-group memory (isolated) |
@@ -39,7 +41,7 @@ Run commands directly—don't tell the user to run them.
 ```bash
 npm run dev          # Run with hot reload
 npm run build        # Compile TypeScript
-./container/build.sh # Rebuild agent container
+# Agent runner: cd container/agent-runner && npx tsc
 ```
 
 Service management:
@@ -55,6 +57,10 @@ systemctl --user stop nanoclaw
 systemctl --user restart nanoclaw
 ```
 
-## Container Build Cache
+## Upstream Updates
 
-The container buildkit caches the build context aggressively. `--no-cache` alone does NOT invalidate COPY steps — the builder's volume retains stale files. To force a truly clean rebuild, prune the builder then re-run `./container/build.sh`.
+This is a fork of `qwibitai/nanoclaw` with containerization removed. When pulling upstream updates, watch for conflicts in:
+- `src/container-runner.ts` (rewritten to spawn node directly)
+- `src/container-runtime.ts` (gutted to no-ops)
+- `src/mount-security.ts` (no longer imported)
+- `container/agent-runner/src/` (minor changes — env var fallbacks for paths)
