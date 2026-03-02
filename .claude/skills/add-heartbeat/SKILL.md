@@ -51,9 +51,8 @@ Update HEARTBEAT.md with their answers.
 Write an IPC task file to register the heartbeat:
 
 ```bash
-NANOCLAW_DATA_DIR="${NANOCLAW_DATA_DIR:-data}"
-mkdir -p "$NANOCLAW_DATA_DIR/ipc/main/tasks"
-cat > "$NANOCLAW_DATA_DIR/ipc/main/tasks/heartbeat_$(date +%s).json" << 'EOF'
+mkdir -p data/ipc/main/tasks
+cat > "data/ipc/main/tasks/heartbeat_$(date +%s).json" << 'EOF'
 {
   "type": "schedule_task",
   "prompt": "Read $NANOCLAW_GROUP_DIR/HEARTBEAT.md (or ./HEARTBEAT.md in the current directory) and run each check listed. Only message the user if something needs attention. If everything is fine, respond with <internal>All checks passed</internal> and nothing else.",

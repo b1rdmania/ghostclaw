@@ -116,41 +116,14 @@ AskUserQuestion: Set up as a background service? (Yes / No, I'll run it manually
 If yes, detect OS:
 
 **macOS:**
-Create `~/Library/LaunchAgents/com.ghostclaw.plist`:
-```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>Label</key>
-    <string>com.ghostclaw</string>
-    <key>ProgramArguments</key>
-    <array>
-        <string>NODE_PATH</string>
-        <string>PROJECT_ROOT/dist/index.js</string>
-    </array>
-    <key>WorkingDirectory</key>
-    <string>PROJECT_ROOT</string>
-    <key>RunAtLoad</key>
-    <true/>
-    <key>KeepAlive</key>
-    <true/>
-    <key>EnvironmentVariables</key>
-    <dict>
-        <key>PATH</key>
-        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:HOME/.local/bin</string>
-        <key>HOME</key>
-        <string>HOME</string>
-    </dict>
-    <key>StandardOutPath</key>
-    <string>PROJECT_ROOT/logs/ghostclaw.log</string>
-    <key>StandardErrorPath</key>
-    <string>PROJECT_ROOT/logs/ghostclaw.error.log</string>
-</dict>
-</plist>
-```
 
-Replace NODE_PATH, PROJECT_ROOT, HOME with actual values.
+Read the template from `launchd/com.ghostclaw.plist`. Replace the `{{...}}` placeholders with actual values:
+- `{{NODE_PATH}}` → result of `which node`
+- `{{PROJECT_ROOT}}` → absolute path to the GhostClaw directory (e.g. `/Users/username/ghostclaw`)
+- `{{HOME}}` → user's home directory (e.g. `/Users/username`)
+- `{{ASSISTANT_NAME}}` → the bot name from `.env`
+
+Write the resolved plist to `~/Library/LaunchAgents/com.ghostclaw.plist`.
 
 ```bash
 mkdir -p PROJECT_ROOT/logs
