@@ -203,18 +203,42 @@ If banned words provided:
 Never use these words: [list]. No filler. Write like Orwell.
 ```
 
-If proactive monitoring selected, also set up the heartbeat:
-```bash
-# Create HEARTBEAT.md and register the scheduled task
-```
-
 ### Write memory seed files
 
 Based on user description, create initial memory files:
 - `groups/main/about-user.md` — what they told you about themselves
 - `groups/main/preferences.md` — communication and tool preferences
 
-## Phase 7: Verify
+## Phase 7: Heartbeat (always set up)
+
+The heartbeat is core to GhostClaw — it's what makes the agent proactive rather than reactive.
+
+### Create HEARTBEAT.md
+
+Create `groups/main/HEARTBEAT.md` with a basic checklist. Ask the user what they'd like monitored — suggest:
+- GhostClaw error log checks
+- Disk space monitoring
+- Email checks (if Gmail is set up)
+- Any URLs or services they want pinged
+
+### Register the heartbeat task
+
+```bash
+mkdir -p data/ipc/main/tasks
+cat > "data/ipc/main/tasks/heartbeat_$(date +%s).json" << 'EOF'
+{
+  "type": "schedule_task",
+  "prompt": "Read $NANOCLAW_GROUP_DIR/HEARTBEAT.md (or ./HEARTBEAT.md in the current directory) and run each check listed. Only message the user if something needs attention. If everything is fine, respond with <internal>All checks passed</internal> and nothing else.",
+  "schedule_type": "cron",
+  "schedule_value": "*/30 * * * *",
+  "context_mode": "isolated"
+}
+EOF
+```
+
+Tell the user: "Heartbeat is running. It checks every 30 minutes and only messages you if something needs attention. Edit `groups/main/HEARTBEAT.md` any time to add or remove checks."
+
+## Phase 8: Verify
 
 Tell the user to send a message to the bot. Check logs to confirm it responds.
 
@@ -224,11 +248,10 @@ tail -20 logs/ghostclaw.log | grep -E "Processing|Agent output|error"
 
 If working: "You're set. Talk to BOTNAME — it knows who you are."
 
-## Phase 8: Optional extras
+## Phase 9: Optional extras
 
 After core setup, offer optional extras. Use AskUserQuestion with multiSelect:
 
-- `/add-heartbeat` — periodic monitoring checks (recommended)
 - `/add-update-check` — weekly check for GhostClaw updates (recommended)
 - `/add-morning-briefing` — scheduled daily/weekly briefings
 - `/add-gmail-agent` — email access for the bot (needs Google Cloud OAuth)
