@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": "./dist-check",
+    "noEmit": true
+  },
+  "include": ["src/**/*", "setup/**/*", "scripts/**/*", "skills-engine/**/*"],
+  "exclude": ["node_modules", "dist", "dist-check", "**/*.test.ts"]
+}

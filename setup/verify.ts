@@ -17,8 +17,6 @@ import { emitStatus } from './status.js';
 
 export async function run(_args: string[]): Promise<void> {
   const projectRoot = process.cwd();
-  const platform = getPlatform();
-  const homeDir = os.homedir();
 
   logger.info('Starting verification');
 

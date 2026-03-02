@@ -5,11 +5,12 @@
   "type": "module",
   "main": "dist/index.js",
   "scripts": {
+    "postinstall": "cd container/agent-runner && npm install --ignore-scripts && npx tsc",
     "build": "tsc",
     "start": "node dist/index.js",
     "dev": "tsx src/index.ts",
     "auth": "tsx src/whatsapp-auth.ts",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.check.json",
     "format": "prettier --write \"src/**/*.ts\"",
     "format:fix": "prettier --write \"src/**/*.ts\"",
     "format:check": "prettier --check \"src/**/*.ts\"",
