@@ -436,7 +436,8 @@ async function runQuery(
         'TeamCreate', 'TeamDelete', 'SendMessage',
         'TodoWrite', 'ToolSearch', 'Skill',
         'NotebookEdit',
-        'mcp__nanoclaw__*'
+        'mcp__nanoclaw__*',
+        ...(process.env.GMAIL_MCP_ENABLED === '1' ? ['mcp__gmail__*'] : []),
       ],
       env: sdkEnv,
       permissionMode: 'bypassPermissions',
@@ -452,6 +453,16 @@ async function runQuery(
             NANOCLAW_IS_MAIN: containerInput.isMain ? '1' : '0',
           },
         },
+        ...(process.env.GMAIL_MCP_ENABLED === '1' ? {
+          gmail: {
+            command: 'npx',
+            args: ['@gongrzhe/server-gmail-autoauth-mcp'],
+            env: {
+              HOME: process.env.HOME || '',
+              PATH: process.env.PATH || '',
+            },
+          },
+        } : {}),
       },
       hooks: {
         PreCompact: [{ hooks: [createPreCompactHook(containerInput.assistantName)] }],
