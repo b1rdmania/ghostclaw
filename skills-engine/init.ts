@@ -29,6 +29,12 @@ export function initGhostclawDir(): void {
   const ghostclawDir = path.join(projectRoot, GHOSTCLAW_DIR);
   const baseDir = path.join(projectRoot, BASE_DIR);
 
+  // Auto-migrate from old .nanoclaw/ directory (v0.1.x → v0.2.0)
+  const oldDir = path.join(projectRoot, '.nanoclaw');
+  if (fs.existsSync(oldDir) && !fs.existsSync(ghostclawDir)) {
+    fs.renameSync(oldDir, ghostclawDir);
+  }
+
   // Create structure
   fs.mkdirSync(path.join(projectRoot, BACKUP_DIR), { recursive: true });
 
