@@ -3,6 +3,7 @@ import path from 'path';
 
 import {
   ASSISTANT_NAME,
+  DATA_DIR,
   IDLE_TIMEOUT,
   MAIN_GROUP_FOLDER,
   POLL_INTERVAL,
@@ -449,7 +450,41 @@ function recoverPendingMessages(): void {
   }
 }
 
+function acquirePidLock(): void {
+  const pidFile = path.join(DATA_DIR, 'ghostclaw.pid');
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+
+  // Kill any existing instance
+  try {
+    const oldPid = parseInt(fs.readFileSync(pidFile, 'utf-8').trim(), 10);
+    if (oldPid && oldPid !== process.pid) {
+      try {
+        process.kill(oldPid, 0); // Check if alive
+        logger.warn({ oldPid }, 'Killing existing GhostClaw process');
+        process.kill(oldPid, 'SIGTERM');
+        // Brief wait for clean shutdown
+        const start = Date.now();
+        while (Date.now() - start < 3000) {
+          try { process.kill(oldPid, 0); } catch { break; }
+          Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 100);
+        }
+        // Force kill if still alive
+        try { process.kill(oldPid, 'SIGKILL'); } catch { /* already dead */ }
+      } catch { /* process doesn't exist, fine */ }
+    }
+  } catch { /* no pid file, fine */ }
+
+  fs.writeFileSync(pidFile, String(process.pid));
+}
+
+function releasePidLock(): void {
+  const pidFile = path.join(DATA_DIR, 'ghostclaw.pid');
+  try { fs.unlinkSync(pidFile); } catch { /* ignore */ }
+}
+
 async function main(): Promise<void> {
+  acquirePidLock();
+
   initDatabase();
   logger.info('Database initialized');
   loadState();
@@ -457,6 +492,7 @@ async function main(): Promise<void> {
   // Graceful shutdown handlers
   const shutdown = async (signal: string) => {
     logger.info({ signal }, 'Shutdown signal received');
+    releasePidLock();
     await queue.shutdown(10000);
     for (const ch of channels) await ch.disconnect();
     process.exit(0);
