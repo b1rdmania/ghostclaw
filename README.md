@@ -6,7 +6,7 @@
 <p align="center"><em>your silent co-worker</em></p>
 
 <p align="center">
-  <a href="https://ghostclaw-site.vercel.app">Website</a> &nbsp;·&nbsp;
+  <a href="https://ghostclaw.io">Website</a> &nbsp;·&nbsp;
   <a href="#install">Install</a> &nbsp;·&nbsp;
   <a href="#what-it-does">Features</a>
 </p>
