@@ -6,13 +6,13 @@ import { parse, stringify } from 'yaml';
 
 import {
   SKILLS_SCHEMA_VERSION,
-  NANOCLAW_DIR,
+  GHOSTCLAW_DIR,
   STATE_FILE,
 } from './constants.js';
 import { AppliedSkill, CustomModification, SkillState } from './types.js';
 
 function getStatePath(): string {
-  return path.join(process.cwd(), NANOCLAW_DIR, STATE_FILE);
+  return path.join(process.cwd(), GHOSTCLAW_DIR, STATE_FILE);
 }
 
 export function readState(): SkillState {

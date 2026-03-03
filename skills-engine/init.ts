@@ -6,7 +6,7 @@ import {
   BACKUP_DIR,
   BASE_DIR,
   BASE_INCLUDES,
-  NANOCLAW_DIR,
+  GHOSTCLAW_DIR,
 } from './constants.js';
 import { isGitRepo } from './merge.js';
 import { writeState } from './state.js';
@@ -24,9 +24,9 @@ const BASE_EXCLUDES = [
   'logs',
 ];
 
-export function initNanoclawDir(): void {
+export function initGhostclawDir(): void {
   const projectRoot = process.cwd();
-  const nanoclawDir = path.join(projectRoot, NANOCLAW_DIR);
+  const ghostclawDir = path.join(projectRoot, GHOSTCLAW_DIR);
   const baseDir = path.join(projectRoot, BASE_DIR);
 
   // Create structure

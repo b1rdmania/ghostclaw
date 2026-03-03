@@ -1,4 +1,4 @@
-export const NANOCLAW_DIR = '.ghostclaw';
+export const GHOSTCLAW_DIR = '.ghostclaw';
 export const STATE_FILE = 'state.yaml';
 export const BASE_DIR = '.ghostclaw/base';
 export const BACKUP_DIR = '.ghostclaw/backup';

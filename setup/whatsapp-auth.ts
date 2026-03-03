@@ -29,7 +29,7 @@ const QR_AUTH_TEMPLATE = `<!DOCTYPE html>
   <div class="instructions">Settings \\u2192 Linked Devices \\u2192 Link a Device</div>
 </div>
 <script>
-  var startKey = 'nanoclaw_qr_start';
+  var startKey = 'ghostclaw_qr_start';
   var start = localStorage.getItem(startKey);
   if (!start) { start = Date.now().toString(); localStorage.setItem(startKey, start); }
   var elapsed = Math.floor((Date.now() - parseInt(start)) / 1000);

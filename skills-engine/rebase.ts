@@ -5,7 +5,7 @@ import os from 'os';
 import path from 'path';
 
 import { clearBackup, createBackup, restoreBackup } from './backup.js';
-import { BASE_DIR, NANOCLAW_DIR } from './constants.js';
+import { BASE_DIR, GHOSTCLAW_DIR } from './constants.js';
 import { copyDir } from './fs-utils.js';
 import { acquireLock } from './lock.js';
 import { mergeFile } from './merge.js';
@@ -79,7 +79,7 @@ export async function rebase(newBasePath?: string): Promise<RebaseResult> {
       const baseFilePath = path.join(baseAbsDir, relPath);
       if (fs.existsSync(baseFilePath)) filesToBackup.push(baseFilePath);
     }
-    const stateFilePath = path.join(projectRoot, NANOCLAW_DIR, 'state.yaml');
+    const stateFilePath = path.join(projectRoot, GHOSTCLAW_DIR, 'state.yaml');
     filesToBackup.push(stateFilePath);
     createBackup(filesToBackup);
 
@@ -117,7 +117,7 @@ export async function rebase(newBasePath?: string): Promise<RebaseResult> {
       }
 
       // Save combined patch
-      const patchPath = path.join(projectRoot, NANOCLAW_DIR, 'combined.patch');
+      const patchPath = path.join(projectRoot, GHOSTCLAW_DIR, 'combined.patch');
       fs.writeFileSync(patchPath, combinedPatch, 'utf-8');
 
       if (newBasePath) {

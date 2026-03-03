@@ -4,7 +4,7 @@
  *
  * For each skill:
  *   1. Reset working tree to clean state
- *   2. Initialize .nanoclaw/ (snapshot current source as base)
+ *   2. Initialize .ghostclaw/ (snapshot current source as base)
  *   3. Apply skill via apply-skill.ts
  *   4. Run tsc --noEmit (typecheck)
  *   5. Run the skill's test command (from manifest.yaml)
@@ -69,9 +69,9 @@ function resetWorkingTree(): void {
   }
 }
 
-function initNanoclaw(): void {
+function initGhostclaw(): void {
   execSync(
-    'npx tsx -e "import { initNanoclawDir } from \'./skills-engine/index\'; initNanoclawDir();"',
+    'npx tsx -e "import { initGhostclawDir } from \'./skills-engine/index\'; initGhostclawDir();"',
     { stdio: 'pipe', timeout: 30_000 },
   );
 }
@@ -127,7 +127,7 @@ async function main(): Promise<void> {
 
     // Clean slate
     resetWorkingTree();
-    initNanoclaw();
+    initGhostclaw();
 
     // Step 1: Apply skill
     try {
