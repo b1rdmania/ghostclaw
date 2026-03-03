@@ -465,25 +465,45 @@ function acquirePidLock(): void {
         // Brief wait for clean shutdown
         const start = Date.now();
         while (Date.now() - start < 3000) {
-          try { process.kill(oldPid, 0); } catch { break; }
+          try {
+            process.kill(oldPid, 0);
+          } catch {
+            break;
+          }
           Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 100);
         }
         // Force kill if still alive
-        try { process.kill(oldPid, 'SIGKILL'); } catch { /* already dead */ }
-      } catch { /* process doesn't exist, fine */ }
+        try {
+          process.kill(oldPid, 'SIGKILL');
+        } catch {
+          /* already dead */
+        }
+      } catch {
+        /* process doesn't exist, fine */
+      }
     }
-  } catch { /* no pid file, fine */ }
+  } catch {
+    /* no pid file, fine */
+  }
 
   fs.writeFileSync(pidFile, String(process.pid));
 }
 
 function releasePidLock(): void {
   const pidFile = path.join(DATA_DIR, 'ghostclaw.pid');
-  try { fs.unlinkSync(pidFile); } catch { /* ignore */ }
+  try {
+    fs.unlinkSync(pidFile);
+  } catch {
+    /* ignore */
+  }
 }
 
 async function main(): Promise<void> {
   acquirePidLock();
+
+  // Clear stale errors from previous runs so heartbeat starts fresh
+  const errorsLog = path.join(process.cwd(), 'logs', 'errors.log');
+  try { fs.writeFileSync(errorsLog, ''); } catch { /* ignore */ }
 
   initDatabase();
   logger.info('Database initialized');
@@ -506,7 +526,12 @@ async function main(): Promise<void> {
       storeMessage(msg);
       dashboardEvents.emit('dashboard', {
         type: 'message',
-        data: { jid: msg.chat_jid, sender: msg.sender, sender_name: msg.sender_name, content: msg.content },
+        data: {
+          jid: msg.chat_jid,
+          sender: msg.sender,
+          sender_name: msg.sender_name,
+          content: msg.content,
+        },
         timestamp: msg.timestamp,
       });
     },
