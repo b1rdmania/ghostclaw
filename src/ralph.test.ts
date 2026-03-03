@@ -18,8 +18,16 @@ describe('parseTaskFile', () => {
     const content = '- [ ] Task one\n- [ ] Task two';
     const tasks = parseTaskFile(content);
     expect(tasks).toHaveLength(2);
-    expect(tasks[0]).toMatchObject({ index: 0, title: 'Task one', completed: false });
-    expect(tasks[1]).toMatchObject({ index: 1, title: 'Task two', completed: false });
+    expect(tasks[0]).toMatchObject({
+      index: 0,
+      title: 'Task one',
+      completed: false,
+    });
+    expect(tasks[1]).toMatchObject({
+      index: 1,
+      title: 'Task two',
+      completed: false,
+    });
   });
 
   it('parses mixed checked and unchecked', () => {
@@ -138,7 +146,12 @@ const baseConfig: RalphConfig = {
 
 describe('buildIterationPrompt', () => {
   it('includes task title and description', () => {
-    const task = { index: 0, title: 'Add login', description: 'POST /api/login', completed: false };
+    const task = {
+      index: 0,
+      title: 'Add login',
+      description: 'POST /api/login',
+      completed: false,
+    };
     const prompt = buildIterationPrompt(task, baseConfig, '');
     expect(prompt).toContain('Add login');
     expect(prompt).toContain('POST /api/login');
@@ -152,7 +165,11 @@ describe('buildIterationPrompt', () => {
 
   it('includes progress log when provided', () => {
     const task = { index: 0, title: 'Task', description: '', completed: false };
-    const prompt = buildIterationPrompt(task, baseConfig, '[1] OK (10s): Setup DB');
+    const prompt = buildIterationPrompt(
+      task,
+      baseConfig,
+      '[1] OK (10s): Setup DB',
+    );
     expect(prompt).toContain('[1] OK (10s): Setup DB');
   });
 
@@ -225,13 +242,23 @@ describe('wrapWithPrefix', () => {
 
 describe('formatProgressEntry', () => {
   it('formats a success entry with all fields', () => {
-    const task = { index: 0, title: 'Add login', description: '', completed: false };
+    const task = {
+      index: 0,
+      title: 'Add login',
+      description: '',
+      completed: false,
+    };
     const entry = formatProgressEntry(3, task, 15000, true);
     expect(entry).toBe('[3] OK (15s): Add login');
   });
 
   it('formats a failure entry', () => {
-    const task = { index: 1, title: 'Fix bug', description: '', completed: false };
+    const task = {
+      index: 1,
+      title: 'Fix bug',
+      description: '',
+      completed: false,
+    };
     const entry = formatProgressEntry(7, task, 8500, false, 'Tests failed');
     expect(entry).toBe('[7] FAILED (9s): Fix bug — Tests failed');
   });

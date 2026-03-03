@@ -389,7 +389,10 @@ export async function processTaskIpc(
 
     case 'start_ralph':
       if (!isMain) {
-        logger.warn({ sourceGroup }, 'Unauthorized start_ralph attempt blocked');
+        logger.warn(
+          { sourceGroup },
+          'Unauthorized start_ralph attempt blocked',
+        );
         break;
       }
       if (data.taskFile && data.targetJid) {
@@ -419,7 +422,10 @@ export async function processTaskIpc(
             data.targetJid,
             `Ralph run started: ${ralphRunId}`,
           );
-          logger.info({ runId: ralphRunId, sourceGroup }, 'Ralph run started via IPC');
+          logger.info(
+            { runId: ralphRunId, sourceGroup },
+            'Ralph run started via IPC',
+          );
         } catch (err) {
           logger.error({ err, sourceGroup }, 'Failed to start ralph run');
           if (data.targetJid) {
@@ -430,7 +436,10 @@ export async function processTaskIpc(
           }
         }
       } else {
-        logger.warn({ sourceGroup }, 'start_ralph missing taskFile or targetJid');
+        logger.warn(
+          { sourceGroup },
+          'start_ralph missing taskFile or targetJid',
+        );
       }
       break;
 
@@ -452,7 +461,10 @@ export async function processTaskIpc(
             now: () => new Date().toISOString(),
           });
           if (data.targetJid) {
-            await deps.sendMessage(data.targetJid, `Ralph run stopped: ${data.runId}`);
+            await deps.sendMessage(
+              data.targetJid,
+              `Ralph run stopped: ${data.runId}`,
+            );
           }
           logger.info({ runId: data.runId }, 'Ralph run stopped via IPC');
         } catch (err) {

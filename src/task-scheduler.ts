@@ -236,7 +236,10 @@ async function runTask(
         },
       );
     } catch (err) {
-      logger.error({ runId: ralphInfo.runId, err }, 'Ralph iteration callback failed');
+      logger.error(
+        { runId: ralphInfo.runId, err },
+        'Ralph iteration callback failed',
+      );
     }
   }
 }

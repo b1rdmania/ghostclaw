@@ -108,10 +108,7 @@ ${config.workDir}
  * Mark a specific checkbox as complete in the raw markdown.
  * Identifies the checkbox by its 0-based index among all checkboxes.
  */
-export function markTaskComplete(
-  content: string,
-  taskIndex: number,
-): string {
+export function markTaskComplete(content: string, taskIndex: number): string {
   const lines = content.split('\n');
   let checkboxCount = 0;
 

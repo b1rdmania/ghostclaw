@@ -39,7 +39,12 @@ describe('startRalphRun', () => {
   it('creates config dir and writes config.json', async () => {
     const deps = createMockDeps({ [TASK_FILE]: SIMPLE_TASKS });
     const runId = await startRalphRun(
-      { taskFilePath: TASK_FILE, workDir: '/tmp', targetJid: 'tg:123', groupFolder: 'main' },
+      {
+        taskFilePath: TASK_FILE,
+        workDir: '/tmp',
+        targetJid: 'tg:123',
+        groupFolder: 'main',
+      },
       deps,
     );
 
@@ -47,7 +52,9 @@ describe('startRalphRun', () => {
     expect(deps.mkdirSync).toHaveBeenCalled();
 
     // Config was written
-    const configKey = Object.keys(deps.files).find((k) => k.endsWith('config.json'));
+    const configKey = Object.keys(deps.files).find((k) =>
+      k.endsWith('config.json'),
+    );
     expect(configKey).toBeDefined();
     const config = JSON.parse(deps.files[configKey!]);
     expect(config.status).toBe('running');
@@ -58,7 +65,12 @@ describe('startRalphRun', () => {
   it('schedules first iteration with correct prefix', async () => {
     const deps = createMockDeps({ [TASK_FILE]: SIMPLE_TASKS });
     const runId = await startRalphRun(
-      { taskFilePath: TASK_FILE, workDir: '/tmp', targetJid: 'tg:123', groupFolder: 'main' },
+      {
+        taskFilePath: TASK_FILE,
+        workDir: '/tmp',
+        targetJid: 'tg:123',
+        groupFolder: 'main',
+      },
       deps,
     );
 
@@ -74,7 +86,12 @@ describe('startRalphRun', () => {
     const deps = createMockDeps({ [TASK_FILE]: '- [x] Done\n- [x] Also done' });
     await expect(
       startRalphRun(
-        { taskFilePath: TASK_FILE, workDir: '/tmp', targetJid: 'tg:123', groupFolder: 'main' },
+        {
+          taskFilePath: TASK_FILE,
+          workDir: '/tmp',
+          targetJid: 'tg:123',
+          groupFolder: 'main',
+        },
         deps,
       ),
     ).rejects.toThrow('No unchecked tasks');
@@ -84,7 +101,12 @@ describe('startRalphRun', () => {
     const deps = createMockDeps({ [TASK_FILE]: '' });
     await expect(
       startRalphRun(
-        { taskFilePath: TASK_FILE, workDir: '/tmp', targetJid: 'tg:123', groupFolder: 'main' },
+        {
+          taskFilePath: TASK_FILE,
+          workDir: '/tmp',
+          targetJid: 'tg:123',
+          groupFolder: 'main',
+        },
         deps,
       ),
     ).rejects.toThrow('No unchecked tasks');
@@ -93,10 +115,17 @@ describe('startRalphRun', () => {
   it('uses correct defaults for maxIterations and maxFailuresPerTask', async () => {
     const deps = createMockDeps({ [TASK_FILE]: SIMPLE_TASKS });
     const runId = await startRalphRun(
-      { taskFilePath: TASK_FILE, workDir: '/tmp', targetJid: 'tg:123', groupFolder: 'main' },
+      {
+        taskFilePath: TASK_FILE,
+        workDir: '/tmp',
+        targetJid: 'tg:123',
+        groupFolder: 'main',
+      },
       deps,
     );
-    const configKey = Object.keys(deps.files).find((k) => k.endsWith('config.json'))!;
+    const configKey = Object.keys(deps.files).find((k) =>
+      k.endsWith('config.json'),
+    )!;
     const config = JSON.parse(deps.files[configKey]);
     expect(config.maxIterations).toBe(50);
     expect(config.maxFailuresPerTask).toBe(3);
@@ -112,7 +141,12 @@ describe('onIterationComplete — success', () => {
   beforeEach(async () => {
     deps = createMockDeps({ [TASK_FILE]: SIMPLE_TASKS });
     runId = await startRalphRun(
-      { taskFilePath: TASK_FILE, workDir: '/tmp', targetJid: 'tg:123', groupFolder: 'main' },
+      {
+        taskFilePath: TASK_FILE,
+        workDir: '/tmp',
+        targetJid: 'tg:123',
+        groupFolder: 'main',
+      },
       deps,
     );
     // Reset mocks after startRalphRun
@@ -143,7 +177,9 @@ describe('onIterationComplete — success', () => {
 
   it('increments currentIteration in config', async () => {
     await onIterationComplete(runId, 1, 'Done!', true, 5000, deps);
-    const configKey = Object.keys(deps.files).find((k) => k.endsWith('config.json'))!;
+    const configKey = Object.keys(deps.files).find((k) =>
+      k.endsWith('config.json'),
+    )!;
     const config = JSON.parse(deps.files[configKey]);
     expect(config.currentIteration).toBe(1);
   });
@@ -159,8 +195,11 @@ describe('onIterationComplete — failure', () => {
     deps = createMockDeps({ [TASK_FILE]: SIMPLE_TASKS });
     runId = await startRalphRun(
       {
-        taskFilePath: TASK_FILE, workDir: '/tmp', targetJid: 'tg:123',
-        groupFolder: 'main', maxFailuresPerTask: 2,
+        taskFilePath: TASK_FILE,
+        workDir: '/tmp',
+        targetJid: 'tg:123',
+        groupFolder: 'main',
+        maxFailuresPerTask: 2,
       },
       deps,
     );
@@ -207,7 +246,12 @@ describe('onIterationComplete — termination', () => {
     const taskContent = '- [ ] Only task';
     const deps = createMockDeps({ [TASK_FILE]: taskContent });
     const runId = await startRalphRun(
-      { taskFilePath: TASK_FILE, workDir: '/tmp', targetJid: 'tg:123', groupFolder: 'main' },
+      {
+        taskFilePath: TASK_FILE,
+        workDir: '/tmp',
+        targetJid: 'tg:123',
+        groupFolder: 'main',
+      },
       deps,
     );
     (deps.createTask as any).mockClear();
@@ -223,7 +267,9 @@ describe('onIterationComplete — termination', () => {
       expect.stringContaining('completed'),
     );
     // Config status updated
-    const configKey = Object.keys(deps.files).find((k) => k.endsWith('config.json'))!;
+    const configKey = Object.keys(deps.files).find((k) =>
+      k.endsWith('config.json'),
+    )!;
     const config = JSON.parse(deps.files[configKey]);
     expect(config.status).toBe('completed');
   });
@@ -232,8 +278,11 @@ describe('onIterationComplete — termination', () => {
     const deps = createMockDeps({ [TASK_FILE]: SIMPLE_TASKS });
     const runId = await startRalphRun(
       {
-        taskFilePath: TASK_FILE, workDir: '/tmp', targetJid: 'tg:123',
-        groupFolder: 'main', maxIterations: 1,
+        taskFilePath: TASK_FILE,
+        workDir: '/tmp',
+        targetJid: 'tg:123',
+        groupFolder: 'main',
+        maxIterations: 1,
       },
       deps,
     );
@@ -246,7 +295,9 @@ describe('onIterationComplete — termination', () => {
     // No more iterations (hit limit)
     expect(deps.createTask).not.toHaveBeenCalled();
     // Status is 'failed' due to max iterations
-    const configKey = Object.keys(deps.files).find((k) => k.endsWith('config.json'))!;
+    const configKey = Object.keys(deps.files).find((k) =>
+      k.endsWith('config.json'),
+    )!;
     const config = JSON.parse(deps.files[configKey]);
     expect(config.status).toBe('failed');
   });
@@ -258,13 +309,20 @@ describe('stopRalphRun', () => {
   it('sets config status to paused', async () => {
     const deps = createMockDeps({ [TASK_FILE]: SIMPLE_TASKS });
     const runId = await startRalphRun(
-      { taskFilePath: TASK_FILE, workDir: '/tmp', targetJid: 'tg:123', groupFolder: 'main' },
+      {
+        taskFilePath: TASK_FILE,
+        workDir: '/tmp',
+        targetJid: 'tg:123',
+        groupFolder: 'main',
+      },
       deps,
     );
 
     stopRalphRun(runId, deps);
 
-    const configKey = Object.keys(deps.files).find((k) => k.endsWith('config.json'))!;
+    const configKey = Object.keys(deps.files).find((k) =>
+      k.endsWith('config.json'),
+    )!;
     const config = JSON.parse(deps.files[configKey]);
     expect(config.status).toBe('paused');
   });
@@ -272,7 +330,12 @@ describe('stopRalphRun', () => {
   it('stops further iterations after pause', async () => {
     const deps = createMockDeps({ [TASK_FILE]: SIMPLE_TASKS });
     const runId = await startRalphRun(
-      { taskFilePath: TASK_FILE, workDir: '/tmp', targetJid: 'tg:123', groupFolder: 'main' },
+      {
+        taskFilePath: TASK_FILE,
+        workDir: '/tmp',
+        targetJid: 'tg:123',
+        groupFolder: 'main',
+      },
       deps,
     );
     (deps.createTask as any).mockClear();
@@ -291,7 +354,12 @@ describe('getRalphRunStatus', () => {
   it('returns config for existing run', async () => {
     const deps = createMockDeps({ [TASK_FILE]: SIMPLE_TASKS });
     const runId = await startRalphRun(
-      { taskFilePath: TASK_FILE, workDir: '/tmp', targetJid: 'tg:123', groupFolder: 'main' },
+      {
+        taskFilePath: TASK_FILE,
+        workDir: '/tmp',
+        targetJid: 'tg:123',
+        groupFolder: 'main',
+      },
       deps,
     );
 

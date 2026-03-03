@@ -110,9 +110,7 @@ export async function startRalphRun(
   const next = getNextTask(tasks);
 
   if (!next) {
-    throw new Error(
-      'No unchecked tasks found in task file. Nothing to run.',
-    );
+    throw new Error('No unchecked tasks found in task file. Nothing to run.');
   }
 
   const now = deps.now();
@@ -164,7 +162,10 @@ export async function onIterationComplete(
   const config = readConfig(runId, deps);
 
   if (config.status !== 'running') {
-    logger.info({ runId, status: config.status }, 'Ralph run not active, skipping');
+    logger.info(
+      { runId, status: config.status },
+      'Ralph run not active, skipping',
+    );
     return;
   }
 
@@ -208,8 +209,7 @@ export async function onIterationComplete(
     }
   } else {
     // Track failure
-    const failures =
-      (config.consecutiveFailures[currentTask.index] || 0) + 1;
+    const failures = (config.consecutiveFailures[currentTask.index] || 0) + 1;
     config.consecutiveFailures[currentTask.index] = failures;
 
     const note =
@@ -262,7 +262,10 @@ export async function onIterationComplete(
       config.targetJid,
       `Ralph run ${runId} hit max iterations (${config.maxIterations}). ${completed}/${updatedTasks.length} tasks done. Run /run-ralph to resume.`,
     );
-    logger.warn({ runId, maxIterations: config.maxIterations }, 'Ralph run hit max iterations');
+    logger.warn(
+      { runId, maxIterations: config.maxIterations },
+      'Ralph run hit max iterations',
+    );
     return;
   }
 
@@ -279,10 +282,7 @@ export async function onIterationComplete(
 }
 
 /** Stop a running Ralph loop. */
-export function stopRalphRun(
-  runId: string,
-  deps: RalphRunnerDeps,
-): void {
+export function stopRalphRun(runId: string, deps: RalphRunnerDeps): void {
   const config = readConfig(runId, deps);
   config.status = 'paused';
   writeConfig(config, deps);

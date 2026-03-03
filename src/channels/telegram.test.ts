@@ -730,7 +730,10 @@ describe('TelegramChannel', () => {
       await channel.connect();
 
       // Build a long message with newlines so line-based splitting kicks in
-      const lines = Array.from({ length: 200 }, (_, i) => `Line ${i}: ${'x'.repeat(30)}`);
+      const lines = Array.from(
+        { length: 200 },
+        (_, i) => `Line ${i}: ${'x'.repeat(30)}`,
+      );
       const longText = lines.join('\n');
       await channel.sendMessage('tg:100200300', longText);
 

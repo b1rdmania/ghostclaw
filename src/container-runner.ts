@@ -207,9 +207,10 @@ export async function runContainerAgent(
       NANOCLAW_IPC_DIR: groupIpcDir,
       NANOCLAW_GLOBAL_DIR: fs.existsSync(globalDir) ? globalDir : '',
       NANOCLAW_EXTRA_DIR: extraDirs.length > 0 ? extraDirs[0] : '',
-      // Claude settings directory
+      // Claude Agent SDK respects CLAUDE_CONFIG_DIR for session isolation.
+      // We do NOT override HOME — tools like gh, Gmail MCP, and any future
+      // MCP servers need the real HOME to find their credentials.
       CLAUDE_CONFIG_DIR: groupSessionsDir,
-      HOME: path.dirname(groupSessionsDir), // so .claude/ is found at $HOME/.claude/
       TZ: Intl.DateTimeFormat().resolvedOptions().timeZone,
     };
 
