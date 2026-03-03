@@ -37,7 +37,7 @@ npm install -g @anthropic-ai/claude-code
 Then:
 
 ```bash
-git clone https://github.com/ziggythebot/ghostclaw.git
+git clone https://github.com/b1rdmania/ghostclaw.git
 cd ghostclaw
 npm install
 claude
