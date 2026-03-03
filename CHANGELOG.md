@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.2.1 (2026-03-03)
+
+- PID file lock prevents duplicate instances (fixes Telegram 409 and WhatsApp conflict errors)
+- Mission Control dashboard (built-in web UI)
+- Branded README with GhostClaw mark
+- Repo transferred to b1rdmania/ghostclaw
+
 ## v0.2.0 (2026-03-03)
 
 **GhostClaw identity release.** Full independence from NanoClaw naming and architecture.
