@@ -19,6 +19,7 @@ import {
 } from '../config.js';
 import { getLastGroupSync, setLastGroupSync, updateChatName } from '../db.js';
 import { logger } from '../logger.js';
+import { signalNewMessage } from '../message-signal.js';
 import {
   isVoiceMessage,
   transcribeAudioMessage,
@@ -259,6 +260,7 @@ export class WhatsAppChannel implements Channel {
             is_from_me: fromMe,
             is_bot_message: isBotMessage,
           });
+          signalNewMessage();
         }
       }
     });

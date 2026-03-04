@@ -11,6 +11,7 @@ import {
   TELEGRAM_ONLY,
   TRIGGER_PATTERN,
 } from './config.js';
+import { waitForMessage } from './message-signal.js';
 import { TelegramChannel } from './channels/telegram.js';
 import { WhatsAppChannel } from './channels/whatsapp.js';
 import { initErrorAlerts, sendErrorAlert } from './error-alerts.js';
@@ -195,9 +196,22 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
     }, IDLE_TIMEOUT);
   };
 
-  // Keep typing indicator alive throughout processing (Telegram expires it after 5s)
+  // Stall-aware typing indicator:
+  // - Refreshes every 4s (Telegram expires typing after 5s)
+  // - Stops after 15s of no agent output (stall detection)
+  // - Resumes when output flows again
+  const TYPING_STALL_MS = 15_000;
+  let typingActive = true;
+  let lastOutputAt = Date.now();
+
   const typingInterval = setInterval(() => {
-    channel.setTyping?.(chatJid, true)?.catch(() => {});
+    if (typingActive && Date.now() - lastOutputAt < TYPING_STALL_MS) {
+      channel.setTyping?.(chatJid, true)?.catch(() => {});
+    } else if (typingActive) {
+      // Stalled — stop typing until output resumes
+      typingActive = false;
+      channel.setTyping?.(chatJid, false)?.catch(() => {});
+    }
   }, 4000);
   await channel.setTyping?.(chatJid, true);
 
@@ -205,6 +219,13 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
   let outputSentToUser = false;
 
   const output = await runAgent(group, prompt, chatJid, async (result) => {
+    // Any streaming output resets the stall timer and resumes typing
+    lastOutputAt = Date.now();
+    if (!typingActive) {
+      typingActive = true;
+      channel.setTyping?.(chatJid, true)?.catch(() => {});
+    }
+
     // Streaming output callback — called for each agent result
     if (result.result) {
       const raw =
@@ -435,7 +456,7 @@ async function startMessageLoop(): Promise<void> {
     } catch (err) {
       logger.error({ err }, 'Error in message loop');
     }
-    await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL));
+    await waitForMessage(POLL_INTERVAL);
   }
 }
 

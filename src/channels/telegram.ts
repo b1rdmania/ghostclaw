@@ -2,6 +2,7 @@ import { Bot, InputFile } from 'grammy';
 
 import { ASSISTANT_NAME, TRIGGER_PATTERN } from '../config.js';
 import { logger } from '../logger.js';
+import { signalNewMessage } from '../message-signal.js';
 import { transcribeBuffer, textToSpeech } from '../transcription.js';
 import { markdownToTelegramHtml } from '../router.js';
 import {
@@ -124,6 +125,7 @@ export class TelegramChannel implements Channel {
         timestamp,
         is_from_me: false,
       });
+      signalNewMessage();
 
       logger.info(
         { chatJid, chatName, sender: senderName },
@@ -163,6 +165,7 @@ export class TelegramChannel implements Channel {
         timestamp,
         is_from_me: false,
       });
+      signalNewMessage();
     };
 
     this.bot.on('message:photo', (ctx) => storeNonText(ctx, '[Photo]'));

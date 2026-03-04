@@ -1,6 +1,6 @@
 {
   "name": "ghostclaw",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "Personal AI assistant. Bare metal, Telegram-first, no containers.",
   "type": "module",
   "main": "dist/index.js",
