@@ -453,11 +453,7 @@ export function startDashboard(): void {
         }
 
         // GET/PUT /api/ralph/:runId/file?name=research.md
-        if (
-          route.base === 'ralph' &&
-          route.param &&
-          route.sub === 'file'
-        ) {
+        if (route.base === 'ralph' && route.param && route.sub === 'file') {
           const filename = url.searchParams.get('name');
           if (!filename || filename.includes('..') || filename.includes('/')) {
             json(res, { error: 'Invalid filename' }, 400);

@@ -1,10 +1,9 @@
-# Core code - maintainer only
-/src/ @gavrielc @gabi-simons
-/container/ @gavrielc @gabi-simons
-/groups/ @gavrielc @gabi-simons
-/launchd/ @gavrielc @gabi-simons
-/package.json @gavrielc @gabi-simons
-/package-lock.json @gavrielc @gabi-simons
+# Core code
+/src/ @b1rdmania
+/container/ @b1rdmania
+/skills-engine/ @b1rdmania
+/package.json @b1rdmania
+/package-lock.json @b1rdmania
 
 # Skills - open to contributors
 /.claude/skills/

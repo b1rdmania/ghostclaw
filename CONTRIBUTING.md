@@ -12,12 +12,12 @@ A [skill](https://code.claude.com/docs/en/skills) is a markdown file in `.claude
 
 A PR that contributes a skill should not modify any source files.
 
-Your skill should contain the **instructions** Claude follows to add the feature—not pre-built code. See `/add-telegram` for a good example.
-
-### Why?
-
-Every user should have clean and minimal code that does exactly what they need. Skills let users selectively add features to their fork without inheriting code for features they don't want.
+Your skill should contain the **instructions** Claude follows to add the feature — not pre-built code. See `/add-telegram` for a good example.
 
 ### Testing
 
-Test your skill by running it on a fresh clone before submitting.
+Test your skill by running it on a fresh clone before submitting. All skills are security-scanned before installation.
+
+## Community
+
+Join the [OpenClawOS Telegram group](https://t.me/+8qJbqxzBQAZkYTNk) for discussion.

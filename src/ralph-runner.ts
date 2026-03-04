@@ -113,7 +113,9 @@ async function sendOutputFiles(
       .filter((f) => {
         if (!deps.statSync) return true;
         try {
-          return deps.statSync(path.join(config.workDir, f)).mtimeMs >= runStart;
+          return (
+            deps.statSync(path.join(config.workDir, f)).mtimeMs >= runStart
+          );
         } catch {
           return false;
         }
