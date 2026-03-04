@@ -16,7 +16,7 @@ Agents run directly on the host machine. `container-runner.ts` spawns `node` pro
 | `src/channels/telegram.ts` | Telegram bot via Grammy |
 | `src/channels/whatsapp.ts` | WhatsApp connection, auth, send/receive |
 | `src/container-runner.ts` | Spawns agent as direct Node.js processes |
-| `src/transcription.ts` | Voice message transcription via OpenAI Whisper |
+| `src/transcription.ts` | Voice transcription (ElevenLabs Scribe) and TTS (ElevenLabs) |
 | `src/task-scheduler.ts` | Cron and one-shot scheduled tasks |
 | `src/ralph.ts` | Ralph loop pure functions (task parsing, prompts) |
 | `src/ralph-runner.ts` | Ralph loop orchestration (start, iterate, stop) |
@@ -24,6 +24,8 @@ Agents run directly on the host machine. `container-runner.ts` spawns `node` pro
 | `src/db.ts` | SQLite operations |
 | `src/config.ts` | Trigger pattern, paths, intervals |
 | `groups/{name}/CLAUDE.md` | Per-group memory and personality (isolated) |
+| `src/dashboard.ts` | Mission Control web UI (port 3333) |
+| `src/error-alerts.ts` | Critical error alerting via Telegram |
 | `container/agent-runner/src/index.ts` | Agent runtime (Claude SDK, MCP tools) |
 | `skills-engine/` | Skill apply/merge/state engine |
 
@@ -31,9 +33,27 @@ Agents run directly on the host machine. `container-runner.ts` spawns `node` pro
 
 | Skill | When to Use |
 |-------|-------------|
-| `/setup` | First-time installation, authentication, service configuration |
+| `/setup-ghostclaw` | First-time setup with personality building |
+| `/update-ghostclaw` | Safe update: backup, pull, migrate, rebuild, restart |
+| `/add-heartbeat` | Periodic health checks |
+| `/add-morning-briefing` | Scheduled daily/weekly briefings |
+| `/add-gmail-agent` | Email integration (Gmail via MCP) |
+| `/add-voice-transcription` | Voice note transcription (ElevenLabs Scribe) |
+| `/add-voice-reply` | Voice replies via ElevenLabs TTS |
+| `/add-telegram-swarm` | Multi-bot agent teams |
+| `/add-slack` | Slack channel integration |
+| `/run-ralph` | Autonomous multi-task loop |
+| `/debug` | Troubleshooting guide |
 | `/customize` | Adding channels, integrations, changing behavior |
-| `/update-nanoclaw` | Bring upstream NanoClaw updates into a customized install |
+| `/update-nanoclaw` | Cherry-pick upstream NanoClaw updates |
+
+## Community
+
+[OpenClawOS Telegram group](https://t.me/+8qJbqxzBQAZkYTNk) — for problems, suggestions, and sharing.
+
+## Dashboard (Mission Control)
+
+Built-in web UI at `http://localhost:3333`. Token auto-generated in `.env` on first run. Tabs: Status, Chats, Tasks, Souls, Logs, Research. SSE for real-time updates. Source: `src/dashboard.ts` + `container/dashboard.html`.
 
 ## Development
 

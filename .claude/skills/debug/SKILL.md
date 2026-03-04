@@ -1,39 +1,39 @@
 ---
 name: debug
-description: Debug container agent issues. Use when things aren't working, container fails, authentication problems, or to understand how the container system works. Covers logs, environment variables, mounts, and common issues.
+description: Debug agent issues. Use when things aren't working, agent fails, authentication problems, or to understand how the system works. Covers logs, environment variables, sessions, and common issues.
 ---
 
-# NanoClaw Container Debugging
+# GhostClaw Agent Debugging
 
-This guide covers debugging the containerized agent execution system.
+This guide covers debugging the agent execution system.
 
 ## Architecture Overview
 
 ```
-Host (macOS)                          Container (Linux VM)
-─────────────────────────────────────────────────────────────
-src/container-runner.ts               container/agent-runner/
-    │                                      │
-    │ spawns container                      │ runs Claude Agent SDK
-    │ with volume mounts                   │ with MCP servers
-    │                                      │
-    ├── data/env/env ──────────────> /workspace/env-dir/env
-    ├── groups/{folder} ───────────> /workspace/group
-    ├── data/ipc/{folder} ────────> /workspace/ipc
-    ├── data/sessions/{folder}/.claude/ ──> /home/node/.claude/ (isolated per-group)
-    └── (main only) project root ──> /workspace/project
+Host (macOS/Linux)
+───────────────────────────────────────────────
+src/index.ts                   container/agent-runner/
+    │                               │
+    │ spawns child process          │ runs Claude Agent SDK
+    │ with env vars                 │ with MCP servers
+    │                               │
+    ├── GHOSTCLAW_GROUP_DIR ──> groups/{folder}/
+    ├── GHOSTCLAW_IPC_DIR ───> data/ipc/{folder}/
+    ├── GHOSTCLAW_GLOBAL_DIR > groups/global/
+    ├── CLAUDE_CONFIG_DIR ───> data/sessions/{folder}/.claude/
+    └── HOME ────────────────> (inherited, real home)
 ```
 
-**Important:** The container runs as user `node` with `HOME=/home/node`. Session files must be mounted to `/home/node/.claude/` (not `/root/.claude/`) for session resumption to work.
+**Important:** Agents run as direct Node.js child processes, not containers. `CLAUDE_CONFIG_DIR` provides per-group session isolation while `HOME` stays untouched so tools like `gh`, Gmail OAuth, etc. find their credentials naturally.
 
 ## Log Locations
 
 | Log | Location | Content |
 |-----|----------|---------|
-| **Main app logs** | `logs/ghostclaw.log` | Host-side WhatsApp, routing, container spawning |
+| **Main app logs** | `logs/ghostclaw.log` | Routing, agent spawning, scheduling |
 | **Main app errors** | `logs/ghostclaw.error.log` | Host-side errors |
-| **Container run logs** | `groups/{folder}/logs/container-*.log` | Per-run: input, mounts, stderr, stdout |
-| **Claude sessions** | `~/.claude/projects/` | Claude Code session history |
+| **Agent run logs** | `groups/{folder}/logs/container-*.log` | Per-run: input, stderr, stdout |
+| **Claude sessions** | `data/sessions/{folder}/.claude/projects/` | Claude Code session history |
 
 ## Enabling Debug Logging
 
@@ -51,15 +51,15 @@ LOG_LEVEL=debug npm run dev
 ```
 
 Debug level shows:
-- Full mount configurations
-- Container command arguments
-- Real-time container stderr
+- Full environment configuration
+- Agent process arguments
+- Real-time agent stderr
 
 ## Common Issues
 
 ### 1. "Claude Code process exited with code 1"
 
-**Check the container log file** in `groups/{folder}/logs/container-*.log`
+**Check the agent log file** in `groups/{folder}/logs/container-*.log`
 
 Common causes:
 
@@ -74,138 +74,48 @@ cat .env  # Should show one of:
 # ANTHROPIC_API_KEY=sk-ant-api03-...        (pay-per-use)
 ```
 
-#### Root User Restriction
-```
---dangerously-skip-permissions cannot be used with root/sudo privileges
-```
-**Fix:** Container must run as non-root user. Check Dockerfile has `USER node`.
+### 2. Environment Variables
 
-### 2. Environment Variables Not Passing
+Secrets are passed to the agent via stdin (never written to disk). The agent receives:
+- `CLAUDE_CODE_OAUTH_TOKEN` or `ANTHROPIC_API_KEY`
+- `ELEVENLABS_API_KEY`, `ELEVENLABS_VOICE_ID`
 
-**Runtime note:** Environment variables passed via `-e` may be lost when using `-i` (interactive/piped stdin).
+Environment variables set via `GHOSTCLAW_*` paths:
+- `GHOSTCLAW_GROUP_DIR` — group's working directory
+- `GHOSTCLAW_IPC_DIR` — IPC communication directory
+- `GHOSTCLAW_GLOBAL_DIR` — global shared directory
+- `CLAUDE_CONFIG_DIR` — per-group Claude session isolation
 
-**Workaround:** The system extracts only authentication variables (`CLAUDE_CODE_OAUTH_TOKEN`, `ANTHROPIC_API_KEY`) from `.env` and mounts them for sourcing inside the container. Other env vars are not exposed.
+To verify env vars are correct, check the agent log (first few lines show the input JSON).
 
-To verify env vars are reaching the container:
+### 3. Session Not Resuming
+
+If sessions aren't being resumed (new session ID every time):
+
+**Root cause:** The SDK looks for sessions at `$CLAUDE_CONFIG_DIR/projects/`. Each group's sessions live in `data/sessions/{folder}/.claude/`.
+
+**Verify sessions exist:**
 ```bash
-echo '{}' | docker run -i \
-  -v $(pwd)/data/env:/workspace/env-dir:ro \
-  --entrypoint /bin/bash ghostclaw-agent:latest \
-  -c 'export $(cat /workspace/env-dir/env | xargs); echo "OAuth: ${#CLAUDE_CODE_OAUTH_TOKEN} chars, API: ${#ANTHROPIC_API_KEY} chars"'
+ls -la data/sessions/*/
 ```
 
-### 3. Mount Issues
-
-**Container mount notes:**
-- Docker supports both `-v` and `--mount` syntax
-- Use `:ro` suffix for readonly mounts:
-  ```bash
-  # Readonly
-  -v /path:/container/path:ro
-
-  # Read-write
-  -v /path:/container/path
-  ```
-
-To check what's mounted inside a container:
+**Check session continuity in logs:**
 ```bash
-docker run --rm --entrypoint /bin/bash ghostclaw-agent:latest -c 'ls -la /workspace/'
+grep "Session initialized" logs/ghostclaw.log | tail -5
+# Should show the SAME session ID for consecutive messages in the same group
 ```
 
-Expected structure:
-```
-/workspace/
-├── env-dir/env           # Environment file (CLAUDE_CODE_OAUTH_TOKEN or ANTHROPIC_API_KEY)
-├── group/                # Current group folder (cwd)
-├── project/              # Project root (main channel only)
-├── global/               # Global CLAUDE.md (non-main only)
-├── ipc/                  # Inter-process communication
-│   ├── messages/         # Outgoing WhatsApp messages
-│   ├── tasks/            # Scheduled task commands
-│   ├── current_tasks.json    # Read-only: scheduled tasks visible to this group
-│   └── available_groups.json # Read-only: WhatsApp groups for activation (main only)
-└── extra/                # Additional custom mounts
-```
+### 4. MCP Server Failures
 
-### 4. Permission Issues
+If an MCP server fails to start, the agent may exit. Check agent logs for MCP initialization errors.
 
-The container runs as user `node` (uid 1000). Check ownership:
-```bash
-docker run --rm --entrypoint /bin/bash ghostclaw-agent:latest -c '
-  whoami
-  ls -la /workspace/
-  ls -la /app/
-'
-```
+MCP servers are configured in `data/sessions/{folder}/.claude/settings.json`. Global servers are synced automatically from `container-runner.ts:buildGlobalMcpServers()`.
 
-All of `/workspace/` and `/app/` should be owned by `node`.
+### 5. Agent Timeout
 
-### 5. Session Not Resuming / "Claude Code process exited with code 1"
-
-If sessions aren't being resumed (new session ID every time), or Claude Code exits with code 1 when resuming:
-
-**Root cause:** The SDK looks for sessions at `$HOME/.claude/projects/`. Inside the container, `HOME=/home/node`, so it looks at `/home/node/.claude/projects/`.
-
-**Check the mount path:**
-```bash
-# In container-runner.ts, verify mount is to /home/node/.claude/, NOT /root/.claude/
-grep -A3 "Claude sessions" src/container-runner.ts
-```
-
-**Verify sessions are accessible:**
-```bash
-docker run --rm --entrypoint /bin/bash \
-  -v ~/.claude:/home/node/.claude \
-  ghostclaw-agent:latest -c '
-echo "HOME=$HOME"
-ls -la $HOME/.claude/projects/ 2>&1 | head -5
-'
-```
-
-**Fix:** Ensure `container-runner.ts` mounts to `/home/node/.claude/`:
-```typescript
-mounts.push({
-  hostPath: claudeDir,
-  containerPath: '/home/node/.claude',  // NOT /root/.claude
-  readonly: false
-});
-```
-
-### 6. MCP Server Failures
-
-If an MCP server fails to start, the agent may exit. Check the container logs for MCP initialization errors.
-
-## Manual Container Testing
-
-### Test the full agent flow:
-```bash
-# Set up env file
-mkdir -p data/env groups/test
-cp .env data/env/env
-
-# Run test query
-echo '{"prompt":"What is 2+2?","groupFolder":"test","chatJid":"test@g.us","isMain":false}' | \
-  docker run -i \
-  -v $(pwd)/data/env:/workspace/env-dir:ro \
-  -v $(pwd)/groups/test:/workspace/group \
-  -v $(pwd)/data/ipc:/workspace/ipc \
-  ghostclaw-agent:latest
-```
-
-### Test Claude Code directly:
-```bash
-docker run --rm --entrypoint /bin/bash \
-  -v $(pwd)/data/env:/workspace/env-dir:ro \
-  ghostclaw-agent:latest -c '
-  export $(cat /workspace/env-dir/env | xargs)
-  claude -p "Say hello" --dangerously-skip-permissions --allowedTools ""
-'
-```
-
-### Interactive shell in container:
-```bash
-docker run --rm -it --entrypoint /bin/bash ghostclaw-agent:latest
-```
+Default timeout is 300 seconds. If the agent takes longer:
+- Check logs for what it's doing (long tool calls, large file reads)
+- Increase timeout via `containerConfig.timeout` on the registered group
 
 ## SDK Options Reference
 
@@ -215,10 +125,10 @@ The agent-runner uses these Claude Agent SDK options:
 query({
   prompt: input.prompt,
   options: {
-    cwd: '/workspace/group',
+    cwd: groupDir,
     allowedTools: ['Bash', 'Read', 'Write', ...],
     permissionMode: 'bypassPermissions',
-    allowDangerouslySkipPermissions: true,  // Required with bypassPermissions
+    allowDangerouslySkipPermissions: true,
     settingSources: ['project'],
     mcpServers: { ... }
   }
@@ -233,41 +143,17 @@ query({
 # Rebuild main app
 npm run build
 
-# Rebuild container (use --no-cache for clean rebuild)
-./container/build.sh
+# Rebuild agent runner
+cd container/agent-runner && npm run build && cd ../..
 
-# Or force full rebuild
-docker builder prune -af
-./container/build.sh
-```
-
-## Checking Container Image
-
-```bash
-# List images
-docker images
-
-# Check what's in the image
-docker run --rm --entrypoint /bin/bash ghostclaw-agent:latest -c '
-  echo "=== Node version ==="
-  node --version
-
-  echo "=== Claude Code version ==="
-  claude --version
-
-  echo "=== Installed packages ==="
-  ls /app/node_modules/
-'
+# Restart service
+launchctl kickstart -k gui/$(id -u)/com.ghostclaw  # macOS
+# systemctl --user restart ghostclaw                # Linux
 ```
 
 ## Session Persistence
 
 Claude sessions are stored per-group in `data/sessions/{group}/.claude/` for security isolation. Each group has its own session directory, preventing cross-group access to conversation history.
-
-**Critical:** The mount path must match the container user's HOME directory:
-- Container user: `node`
-- Container HOME: `/home/node`
-- Mount target: `/home/node/.claude/` (NOT `/root/.claude/`)
 
 To clear sessions:
 
@@ -277,30 +163,21 @@ rm -rf data/sessions/
 
 # Clear sessions for a specific group
 rm -rf data/sessions/{groupFolder}/.claude/
-
-# Also clear the session ID from NanoClaw's tracking (stored in SQLite)
-sqlite3 store/messages.db "DELETE FROM sessions WHERE group_folder = '{groupFolder}'"
-```
-
-To verify session resumption is working, check the logs for the same session ID across messages:
-```bash
-grep "Session initialized" logs/ghostclaw.log | tail -5
-# Should show the SAME session ID for consecutive messages in the same group
 ```
 
 ## IPC Debugging
 
-The container communicates back to the host via files in `/workspace/ipc/`:
+Agents communicate back to the host via files in `data/ipc/{folder}/`:
 
 ```bash
 # Check pending messages
-ls -la data/ipc/messages/
+ls -la data/ipc/*/messages/
 
 # Check pending task operations
-ls -la data/ipc/tasks/
+ls -la data/ipc/*/tasks/
 
 # Read a specific IPC file
-cat data/ipc/messages/*.json
+cat data/ipc/*/messages/*.json
 
 # Check available groups (main channel only)
 cat data/ipc/main/available_groups.json
@@ -310,38 +187,38 @@ cat data/ipc/{groupFolder}/current_tasks.json
 ```
 
 **IPC file types:**
-- `messages/*.json` - Agent writes: outgoing WhatsApp messages
+- `messages/*.json` - Agent writes: outgoing messages
 - `tasks/*.json` - Agent writes: task operations (schedule, pause, resume, cancel, refresh_groups)
 - `current_tasks.json` - Host writes: read-only snapshot of scheduled tasks
-- `available_groups.json` - Host writes: read-only list of WhatsApp groups (main only)
+- `available_groups.json` - Host writes: read-only list of groups (main only)
 
 ## Quick Diagnostic Script
 
 Run this to check common issues:
 
 ```bash
-echo "=== Checking NanoClaw Container Setup ==="
+echo "=== Checking GhostClaw Setup ==="
 
 echo -e "\n1. Authentication configured?"
 [ -f .env ] && (grep -q "CLAUDE_CODE_OAUTH_TOKEN=sk-" .env || grep -q "ANTHROPIC_API_KEY=sk-" .env) && echo "OK" || echo "MISSING - add CLAUDE_CODE_OAUTH_TOKEN or ANTHROPIC_API_KEY to .env"
 
-echo -e "\n2. Env file copied for container?"
-[ -f data/env/env ] && echo "OK" || echo "MISSING - will be created on first run"
+echo -e "\n2. Node.js available?"
+node --version 2>/dev/null && echo "OK" || echo "NOT FOUND - install Node.js 20+"
 
-echo -e "\n3. Container runtime running?"
-docker info &>/dev/null && echo "OK" || echo "NOT RUNNING - start Docker Desktop (macOS) or sudo systemctl start docker (Linux)"
+echo -e "\n3. Built?"
+[ -d dist ] && echo "OK" || echo "MISSING - run npm run build"
 
-echo -e "\n4. Container image exists?"
-echo '{}' | docker run -i --entrypoint /bin/echo ghostclaw-agent:latest "OK" 2>/dev/null || echo "MISSING - run ./container/build.sh"
+echo -e "\n4. Agent runner built?"
+[ -d container/agent-runner/dist ] && echo "OK" || echo "MISSING - run cd container/agent-runner && npm run build"
 
-echo -e "\n5. Session mount path correct?"
-grep -q "/home/node/.claude" src/container-runner.ts 2>/dev/null && echo "OK" || echo "WRONG - should mount to /home/node/.claude/, not /root/.claude/"
+echo -e "\n5. Groups directory?"
+ls -la groups/ 2>/dev/null || echo "MISSING - run /setup-ghostclaw"
 
-echo -e "\n6. Groups directory?"
-ls -la groups/ 2>/dev/null || echo "MISSING - run setup"
+echo -e "\n6. Service running?"
+launchctl list 2>/dev/null | grep ghostclaw && echo "OK" || echo "NOT RUNNING"
 
-echo -e "\n7. Recent container logs?"
-ls -t groups/*/logs/container-*.log 2>/dev/null | head -3 || echo "No container logs yet"
+echo -e "\n7. Recent agent logs?"
+ls -t groups/*/logs/container-*.log 2>/dev/null | head -3 || echo "No agent logs yet"
 
 echo -e "\n8. Session continuity working?"
 SESSIONS=$(grep "Session initialized" logs/ghostclaw.log 2>/dev/null | tail -5 | awk '{print $NF}' | sort -u | wc -l)

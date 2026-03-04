@@ -32,6 +32,7 @@ export interface RalphRunnerDeps {
   mkdirSync: (path: string, opts?: { recursive?: boolean }) => void;
   existsSync: (path: string) => boolean;
   readdirSync?: (path: string) => string[];
+  statSync?: (path: string) => { mtimeMs: number };
   now: () => string;
 }
 
@@ -105,18 +106,23 @@ async function sendOutputFiles(
   if (!deps.sendDocument || !deps.readdirSync) return;
 
   try {
+    const runStart = new Date(config.startedAt).getTime();
     const files = deps
       .readdirSync(config.workDir)
-      .filter((f) => f.endsWith('.md'));
+      .filter((f) => f.endsWith('.md'))
+      .filter((f) => {
+        if (!deps.statSync) return true;
+        try {
+          return deps.statSync(path.join(config.workDir, f)).mtimeMs >= runStart;
+        } catch {
+          return false;
+        }
+      });
 
     for (const file of files) {
       try {
         const content = deps.readFile(path.join(config.workDir, file));
-        await deps.sendDocument(
-          config.targetJid,
-          Buffer.from(content),
-          file,
-        );
+        await deps.sendDocument(config.targetJid, Buffer.from(content), file);
       } catch (err) {
         logger.warn({ file, err }, 'Failed to send Ralph output file');
       }

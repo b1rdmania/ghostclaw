@@ -422,6 +422,7 @@ export async function processTaskIpc(
               mkdirSync: (p: string, opts?) => fs.mkdirSync(p, opts),
               existsSync: (p: string) => fs.existsSync(p),
               readdirSync: (p: string) => fs.readdirSync(p),
+              statSync: (p: string) => fs.statSync(p),
               now: () => new Date().toISOString(),
             },
           );

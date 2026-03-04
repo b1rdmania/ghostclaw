@@ -8,7 +8,8 @@
 <p align="center">
   <a href="https://ghostclaw.io">Website</a> &nbsp;·&nbsp;
   <a href="#install">Install</a> &nbsp;·&nbsp;
-  <a href="#what-it-does">Features</a>
+  <a href="#what-it-does">Features</a> &nbsp;·&nbsp;
+  <a href="https://t.me/+8qJbqxzBQAZkYTNk"><img src="https://img.shields.io/badge/Telegram-Community-26A5E4?logo=telegram&logoColor=white" alt="Telegram Community"></a>
 </p>
 
 ---
@@ -31,12 +32,13 @@ If you're already an advanced Claude Code user and want an agent that runs wild 
 
 - **Its own Telegram identity** — message it like a person. No slash commands, no trigger needed in DMs.
 - **WhatsApp group chats** — add it to any group. Responds when mentioned, stays quiet otherwise.
-- **Voice notes** — send voice messages, it transcribes and responds. Both channels.
+- **Voice notes** — send voice messages, it transcribes and responds.
 - **Scheduled tasks** — "check Hacker News every morning" or "remind me to review PRs every Friday at 3pm". Natural language, cron, or intervals.
 - **Per-group personality** — each chat gets its own tone, memory, and rules. Direct in your DM, casual in the group chat.
-- **Email** — reads and sends email. Picks up verification codes, flags urgent messages, sends summaries. Gmail, Outlook, or any IMAP.
+- **Email** — reads and sends Gmail. Picks up verification codes, flags urgent messages, sends summaries.
 - **Health monitoring** — heartbeat checks on disk space, services, logs. Daily briefings. Silent unless something needs attention.
 - **Layer any Claude Code skill onto your bot** — anything you can do in Claude Code, you can add to your agent. NanoClaw skills, OpenClaw skills, or your own. Every install is automatically security-scanned.
+- **Mission Control dashboard** — built-in web UI for monitoring chats, tasks, research runs, and agent health.
 - **Fully modifiable from Claude Code** — every behaviour, every personality file, every integration. Customise exactly the way you already work.
 
 ## Install
@@ -74,10 +76,12 @@ Once running, add capabilities by typing commands in Claude Code:
 | `/add-morning-briefing` | Daily or weekly briefings |
 | `/add-gmail-agent` | Email read/send (Gmail, Outlook, or IMAP) |
 | `/add-update-check` | Weekly check for GhostClaw updates |
-| `/add-voice` | Voice note transcription |
+| `/add-voice-transcription` | Voice note transcription (ElevenLabs) |
 | `/add-voice-reply` | Bot replies with voice notes (ElevenLabs) |
 | `/add-slack` | Slack as an additional channel |
 | `/add-telegram-swarm` | Multi-bot agent teams |
+| `/run-ralph` | Autonomous multi-task loop (overnight research, batch work) |
+| `/debug` | Troubleshooting guide |
 | `/update-ghostclaw` | Safe update: backup, pull, migrate, rebuild, restart |
 
 Skills are security-scanned before installation. Build your own or pull from the NanoClaw/OpenClaw ecosystem — they're compatible.
@@ -113,7 +117,8 @@ All config lives in `.env`. The setup wizard creates this for you.
 | `ASSISTANT_NAME` | Yes | Bot name (trigger word in groups) |
 | `TELEGRAM_BOT_TOKEN` | Yes | From @BotFather |
 | `GHOSTCLAW_MODEL` | No | Default: `claude-sonnet-4-6`. Also: `claude-opus-4-6`, `claude-haiku-4-5-20251001` |
-| `OPENAI_API_KEY` | No | For voice transcription |
+| `ELEVENLABS_API_KEY` | No | For voice transcription and voice replies |
+| `ELEVENLABS_VOICE_ID` | No | Voice ID for TTS replies (elevenlabs.io/voice-library) |
 | `TELEGRAM_ONLY` | No | Set `true` to skip WhatsApp |
 | `GMAIL_MCP_ENABLED` | No | Set `1` for email integration |
 
@@ -157,7 +162,7 @@ launchctl kickstart -k gui/$(id -u)/com.ghostclaw  # macOS
 
 **What does it cost?**
 
-Your Claude subscription (Max or API) and optionally OpenAI for voice (~$0.006/minute). No platform fees.
+Your Claude subscription (Max or API) and optionally ElevenLabs for voice transcription and replies. No platform fees.
 
 **Is this secure?**
 
@@ -166,6 +171,10 @@ The bot has full access to its machine. That's the point — run it on dedicated
 **What's the relationship to NanoClaw and OpenClaw?**
 
 GhostClaw is a fork of [NanoClaw](https://github.com/qwibitai/nanoclaw) with containers removed and OpenClaw-inspired features added (heartbeat, briefings, email, monitoring). NanoClaw skills work without modification. Think of it as NanoClaw's simplicity with OpenClaw's ambition.
+
+## Community
+
+Join the [OpenClawOS Telegram group](https://t.me/+8qJbqxzBQAZkYTNk) to share problems, suggestions, or just see what others are building.
 
 ## Credits
 

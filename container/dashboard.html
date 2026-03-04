@@ -537,9 +537,21 @@
       <!-- RESEARCH TAB -->
       <div id="panel-research" class="tab-panel">
         <div class="main-header">
-          <h2 class="main-title">Research Runs</h2>
+          <h2 class="main-title">Research</h2>
         </div>
-        <div id="researchList"></div>
+        <div class="souls-grid">
+          <div id="researchFileList" class="souls-list"></div>
+          <div class="soul-editor">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+              <span id="researchEditorLabel" style="font-size:0.8125rem;color:var(--text-muted);">Select a file to view</span>
+              <a id="researchDownloadLink" class="btn" style="display:none;text-decoration:none;font-size:0.625rem;" download>Download</a>
+            </div>
+            <textarea id="researchContent" placeholder="Select a research file to view and edit..."></textarea>
+            <div class="soul-editor-actions">
+              <button class="btn primary" onclick="window._saveResearchFile()" id="researchSaveBtn" disabled>Save</button>
+            </div>
+          </div>
+        </div>
       </div>
 
     </main>
@@ -585,6 +597,28 @@
   let souls = [];
   let currentSoulFolder = null;
   let activityItems = [];
+  let currentResearchRunId = null;
+  let currentResearchFile = null;
+
+  // --- Ghost Quips ---
+  const ghostLoading = [
+    'Summoning spirits...', 'Rattling chains...', 'Checking the other side...',
+    'Haunting the database...', 'Emerging from the shadows...', 'Consulting the ouija board...',
+    'Phasing through walls...', 'Whispering to the void...',
+  ];
+  const ghostSaved = ['Saved!', 'Etched in ectoplasm.', 'Sealed in the crypt.', 'Ghostwritten.', 'Haunted into memory.'];
+  const ghostEmpty = {
+    activity: 'Waiting for signs of life...',
+    chats: 'No chats found. An empty seance.',
+    tasks: 'Nothing scheduled. The spirits rest.',
+    souls: 'No groups found. The void stares back.',
+    research: 'No research runs. The void awaits.',
+    logs: 'No logs. Silence in the crypt.',
+    config: 'No configuration. A blank tombstone.',
+  };
+  const ghostFooter = ['boo.', 'watching.', '*creaks*', '...', 'still here.', 'always listening.', 'behind you.'];
+  function ghostQuip(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+  function ghostEmptyState(tab) { return '<div class="empty-state"><span class="empty-state-ghost">&#128123;</span>' + (ghostEmpty[tab] || 'Nothing here.') + '</div>'; }
 
   // --- Utils ---
   function api(path, opts) {
@@ -750,7 +784,7 @@
         '</div>' +
         (c.registered ? '<span class="chat-registered">Registered</span>' : '') +
       '</div>'
-    ).join('') || '<div class="empty-state">No chats found</div>';
+    ).join('') || ghostEmptyState('chats');
 
     // Populate send selects
     const options = chats.map(c =>
@@ -830,7 +864,7 @@
         '</div>' +
         '<span class="task-badge ' + badge + '">' + t.status + '</span>' +
       '</div>';
-    }).join('') || '<div class="empty-state">No scheduled tasks</div>';
+    }).join('') || ghostEmptyState('tasks');
   }
 
   function renderTaskCards() {
@@ -883,7 +917,7 @@
       '<div class="soul-item' + (s.folder === currentSoulFolder ? ' active' : '') + '" onclick="window._selectSoul(\'' + esc(s.folder) + '\')">' +
         esc(s.folder) + (s.exists ? '' : ' <span style="color:var(--text-muted)">(empty)</span>') +
       '</div>'
-    ).join('') || '<div class="empty-state" style="padding:20px;">No groups found</div>';
+    ).join('') || '<div style="padding:20px;">' + ghostEmptyState('souls') + '</div>';
   }
 
   window._selectSoul = async function(folder) {
@@ -906,7 +940,8 @@
       method: 'PUT',
       body: JSON.stringify({ content }),
     });
-    document.getElementById('soulEditorLabel').textContent = currentSoulFolder + '/CLAUDE.md - Saved!';
+    const quip = ghostQuip(ghostSaved);
+    document.getElementById('soulEditorLabel').textContent = currentSoulFolder + '/CLAUDE.md — ' + quip;
     setTimeout(() => {
       document.getElementById('soulEditorLabel').textContent = currentSoulFolder + '/CLAUDE.md';
     }, 2000);
@@ -921,7 +956,7 @@
         '<span class="config-key">' + esc(k) + '</span>' +
         '<span class="config-value">' + esc(String(v)) + '</span>' +
       '</div>'
-    ).join('') || '<div class="empty-state">No configuration values</div>';
+    ).join('') || ghostEmptyState('config');
   }
 
   // --- Logs ---
@@ -947,44 +982,73 @@
         '</div>' +
         '<div class="log-file-content' + (i === 0 ? ' open' : '') + '">' + esc(l.content) + '</div>' +
       '</div>'
-    ).join('') || '<div class="empty-state">No logs found</div>';
+    ).join('') || ghostEmptyState('logs');
   };
 
   // --- Research ---
   async function loadResearch() {
     const runs = await api('ralph');
-    const container = document.getElementById('researchList');
+    const list = document.getElementById('researchFileList');
     if (!runs || runs.length === 0) {
-      container.innerHTML = '<div class="empty-state">No research runs yet</div>';
+      list.innerHTML = ghostEmptyState('research');
       return;
     }
-    container.innerHTML = runs.map(run => {
+    let html = '';
+    for (const run of runs) {
       const badge = run.status === 'completed' ? 'badge-green'
         : run.status === 'running' ? 'badge-yellow'
         : run.status === 'failed' ? 'badge-red' : 'badge-muted';
       const started = new Date(run.startedAt).toLocaleString('en-GB', {
         day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'
       });
-      const taskFile = run.taskFilePath.split('/').pop();
-      const files = (run.outputFiles || []).map(f =>
-        '<a href="/api/ralph/' + esc(run.runId) + '/file?name=' + encodeURIComponent(f.name) +
-        '&token=' + encodeURIComponent(TOKEN) + '" class="research-file" download>' +
-        esc(f.name) + ' <span style="color:var(--text-muted);font-size:0.6875rem;">(' +
-        (f.size > 1024 ? Math.round(f.size / 1024) + 'KB' : f.size + 'B') + ')</span></a>'
-      ).join('');
-      return '<div class="task-card">' +
-        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">' +
-          '<span class="badge ' + badge + '">' + esc(run.status) + '</span>' +
-          '<span style="font-size:0.6875rem;color:var(--text-muted);">' + started + '</span>' +
-        '</div>' +
-        '<div style="font-size:0.8125rem;font-weight:600;margin-bottom:4px;">' + esc(taskFile) + '</div>' +
-        '<div style="font-size:0.75rem;color:var(--text-secondary);margin-bottom:8px;">' +
-          run.currentIteration + ' iterations' +
-        '</div>' +
-        (files ? '<div style="display:flex;flex-direction:column;gap:4px;">' + files + '</div>' : '') +
-      '</div>';
-    }).join('');
+      html += '<div style="padding:8px 16px;font-size:0.6875rem;color:var(--text-muted);border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;">' +
+        '<span>' + started + '</span><span class="badge ' + badge + '">' + esc(run.status) + '</span></div>';
+      const files = run.outputFiles || [];
+      if (files.length === 0) {
+        html += '<div style="padding:8px 16px;font-size:0.75rem;color:var(--text-muted);font-style:italic;">No output files</div>';
+      }
+      for (const f of files) {
+        const size = f.size > 1024 ? Math.round(f.size / 1024) + 'KB' : f.size + 'B';
+        const isActive = currentResearchRunId === run.runId && currentResearchFile === f.name;
+        html += '<div class="soul-item' + (isActive ? ' active' : '') + '" onclick="window._selectResearch(\'' +
+          esc(run.runId) + '\',\'' + esc(f.name) + '\')">' +
+          esc(f.name) + ' <span style="color:var(--text-muted);font-size:0.625rem;">(' + size + ')</span></div>';
+      }
+    }
+    list.innerHTML = html;
   }
+
+  window._selectResearch = async function(runId, filename) {
+    currentResearchRunId = runId;
+    currentResearchFile = filename;
+    document.getElementById('researchEditorLabel').textContent = ghostQuip(ghostLoading);
+    const data = await api('ralph/' + encodeURIComponent(runId) + '/file?name=' + encodeURIComponent(filename));
+    document.getElementById('researchEditorLabel').textContent = filename;
+    document.getElementById('researchContent').value = data.content || '';
+    document.getElementById('researchSaveBtn').disabled = false;
+    // Download link
+    const dl = document.getElementById('researchDownloadLink');
+    dl.href = '/api/ralph/' + encodeURIComponent(runId) + '/file?name=' + encodeURIComponent(filename) + '&download=1&token=' + encodeURIComponent(TOKEN);
+    dl.style.display = 'inline-flex';
+    // Active state
+    document.querySelectorAll('#researchFileList .soul-item').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('#researchFileList .soul-item').forEach(el => {
+      if (el.textContent.trim().startsWith(filename)) el.classList.add('active');
+    });
+  };
+
+  window._saveResearchFile = async function() {
+    if (!currentResearchRunId || !currentResearchFile) return;
+    const content = document.getElementById('researchContent').value;
+    await api('ralph/' + encodeURIComponent(currentResearchRunId) + '/file?name=' + encodeURIComponent(currentResearchFile), {
+      method: 'PUT',
+      body: JSON.stringify({ content }),
+    });
+    const label = document.getElementById('researchEditorLabel');
+    const quip = ghostQuip(ghostSaved);
+    label.textContent = currentResearchFile + ' — ' + quip;
+    setTimeout(() => { label.textContent = currentResearchFile; }, 2000);
+  };
 
   // --- SSE ---
   function connectSSE() {
@@ -1026,6 +1090,12 @@
   loadChats(); // pre-populate send select
   loadTasks(); // populate task cards
   connectSSE();
+
+  // Footer rotation
+  setInterval(() => {
+    const footer = document.querySelector('.footer-text');
+    if (footer) footer.textContent = ghostQuip(ghostFooter);
+  }, 30000);
 
 })();
 </script>

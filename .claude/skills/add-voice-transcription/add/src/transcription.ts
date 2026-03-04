@@ -3,51 +3,56 @@ import { WAMessage, WASocket } from '@whiskeysockets/baileys';
 
 import { readEnvFile } from './env.js';
 
-interface TranscriptionConfig {
-  model: string;
-  enabled: boolean;
-  fallbackMessage: string;
-}
+const FALLBACK_MESSAGE = '[Voice Message - transcription unavailable]';
 
-const DEFAULT_CONFIG: TranscriptionConfig = {
-  model: 'whisper-1',
-  enabled: true,
-  fallbackMessage: '[Voice Message - transcription unavailable]',
-};
-
-async function transcribeWithOpenAI(
+async function transcribeWithElevenLabs(
   audioBuffer: Buffer,
-  config: TranscriptionConfig,
 ): Promise<string | null> {
-  const env = readEnvFile(['OPENAI_API_KEY']);
-  const apiKey = env.OPENAI_API_KEY;
+  const env = readEnvFile(['ELEVENLABS_API_KEY']);
+  const apiKey = env.ELEVENLABS_API_KEY;
 
   if (!apiKey) {
-    console.warn('OPENAI_API_KEY not set in .env');
+    console.warn('ELEVENLABS_API_KEY not set in .env - transcription disabled');
     return null;
   }
 
   try {
-    const openaiModule = await import('openai');
-    const OpenAI = openaiModule.default;
-    const toFile = openaiModule.toFile;
+    const formData = new FormData();
+    formData.append('model_id', 'scribe_v1');
+    formData.append(
+      'file',
+      new Blob([audioBuffer], { type: 'audio/ogg' }),
+      'voice.ogg',
+    );
 
-    const openai = new OpenAI({ apiKey });
+    const response = await fetch(
+      'https://api.elevenlabs.io/v1/speech-to-text',
+      {
+        method: 'POST',
+        headers: { 'xi-api-key': apiKey },
+        body: formData,
+      },
+    );
 
-    const file = await toFile(audioBuffer, 'voice.ogg', {
-      type: 'audio/ogg',
-    });
+    if (!response.ok) {
+      console.error(
+        'ElevenLabs STT error:',
+        response.status,
+        await response.text(),
+      );
+      return null;
+    }
 
-    const transcription = await openai.audio.transcriptions.create({
-      file: file,
-      model: config.model,
-      response_format: 'text',
-    });
+    const result = (await response.json()) as { text?: string };
+    if (!result.text) {
+      console.warn('ElevenLabs STT returned empty text');
+      return null;
+    }
 
-    // When response_format is 'text', the API returns a plain string
-    return transcription as unknown as string;
+    console.log(`ElevenLabs transcription complete: ${result.text.length} chars`);
+    return result.text;
   } catch (err) {
-    console.error('OpenAI transcription failed:', err);
+    console.error('ElevenLabs STT failed:', err);
     return null;
   }
 }
@@ -56,12 +61,6 @@ export async function transcribeAudioMessage(
   msg: WAMessage,
   sock: WASocket,
 ): Promise<string | null> {
-  const config = DEFAULT_CONFIG;
-
-  if (!config.enabled) {
-    return config.fallbackMessage;
-  }
-
   try {
     const buffer = (await downloadMediaMessage(
       msg,
@@ -75,21 +74,21 @@ export async function transcribeAudioMessage(
 
     if (!buffer || buffer.length === 0) {
       console.error('Failed to download audio message');
-      return config.fallbackMessage;
+      return FALLBACK_MESSAGE;
     }
 
     console.log(`Downloaded audio message: ${buffer.length} bytes`);
 
-    const transcript = await transcribeWithOpenAI(buffer, config);
+    const transcript = await transcribeWithElevenLabs(buffer);
 
     if (!transcript) {
-      return config.fallbackMessage;
+      return FALLBACK_MESSAGE;
     }
 
     return transcript.trim();
   } catch (err) {
     console.error('Transcription error:', err);
-    return config.fallbackMessage;
+    return FALLBACK_MESSAGE;
   }
 }
 
