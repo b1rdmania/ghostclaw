@@ -7,34 +7,48 @@
 
 <p align="center">
   <a href="https://ghostclaw.io">Website</a> &nbsp;·&nbsp;
-  <a href="#install">Install</a> &nbsp;·&nbsp;
+  <a href="https://ghostclaw.io/why.html">Why GhostClaw</a> &nbsp;·&nbsp;
+  <a href="#get-started">Install</a> &nbsp;·&nbsp;
   <a href="#whats-included">Features</a> &nbsp;·&nbsp;
   <a href="https://t.me/+8qJbqxzBQAZkYTNk"><img src="https://img.shields.io/badge/Telegram-Community-26A5E4?logo=telegram&logoColor=white" alt="Telegram Community"></a>
 </p>
 
 ---
 
-A bare-metal AI agent that runs on your hardware, under your control. Single Node.js process, SQLite for state, Claude as a child process. No containers, no cloud, no orchestration. Telegram, WhatsApp, email, cron. 10 minutes to set up.
+An AI agent that lives on your computer and works for you. Message it on Telegram like a co-worker. It reads email, does research, runs scheduled tasks, and has full access to its machine. No containers, no cloud, no orchestration. 10 minutes to set up.
 
-## Install
+## Get started
+
+Best on a dedicated machine — a Mac Mini, an old laptop, a VPS. Fresh accounts, let it grow. You _can_ run it on your daily driver, but GhostClaw runs autonomously, installs things, writes files, runs tasks on its own schedule. Give it a machine it can own.
+
+### 1. Install Claude Code
+
+If you haven't already — open Terminal and run:
 
 ```bash
-npm install -g @anthropic-ai/claude-code   # if you haven't already
+npm install -g @anthropic-ai/claude-code
+```
+
+### 2. Clone and launch
+
+```bash
 git clone https://github.com/b1rdmania/ghostclaw.git
 cd ghostclaw
 npm install
 claude
 ```
 
-Inside Claude Code:
+### 3. Let Claude walk you through setup
+
+Inside Claude Code, type:
 
 ```
 /setup-ghostclaw
 ```
 
-The wizard handles API keys, Telegram bot, personality, background service. About 10 minutes.
+Claude handles everything interactively — Telegram bot from BotFather, API keys, personality, background service. About 10 minutes. You just answer questions.
 
-**Requirements:** Node.js 20+, Claude Code, macOS or Linux, Claude Max or API key.
+**Requirements:** Node.js 20+, macOS or Linux, Claude Max or API key.
 
 ## What's included
 
