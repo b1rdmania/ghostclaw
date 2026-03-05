@@ -252,6 +252,15 @@ describe('markdownToTelegramHtml', () => {
   it('passes through plain text unchanged', () => {
     expect(markdownToTelegramHtml('just plain text')).toBe('just plain text');
   });
+
+  it('strips raw HTML tags from agent output', () => {
+    expect(markdownToTelegramHtml('<b>bold</b> text')).toBe('bold text');
+  });
+
+  it('strips nested HTML tags in pre blocks', () => {
+    const input = '<pre>const x = <code>1</code>;</pre>';
+    expect(markdownToTelegramHtml(input)).toBe('const x = 1;');
+  });
 });
 
 // --- Trigger gating with requiresTrigger flag ---

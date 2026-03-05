@@ -40,7 +40,9 @@ export function markdownToTelegramHtml(md: string): string {
     return `\x00${placeholders.length - 1}\x00`;
   };
 
-  let text = md;
+  // Strip raw HTML tags the agent may have produced — we convert from markdown only.
+  // Keep &amp; &lt; &gt; entities but remove actual tags like <b>, <pre>, <code>, etc.
+  let text = md.replace(/<\/?[a-zA-Z][^>]*>/g, '');
 
   // Fenced code blocks: ```lang\n...\n```
   text = text.replace(/```[\w]*\n([\s\S]*?)```/g, (_m, code) =>
