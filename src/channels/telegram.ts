@@ -1,4 +1,6 @@
 import { Bot, InputFile } from 'grammy';
+import path from 'path';
+import fs from 'fs';
 
 import { ASSISTANT_NAME, TRIGGER_PATTERN } from '../config.js';
 import { logger } from '../logger.js';
@@ -16,6 +18,7 @@ export interface TelegramChannelOpts {
   onMessage: OnInboundMessage;
   onChatMetadata: OnChatMetadata;
   registeredGroups: () => Record<string, RegisteredGroup>;
+  onReset?: (chatJid: string) => boolean;
 }
 
 export class TelegramChannel implements Channel {
@@ -51,6 +54,22 @@ export class TelegramChannel implements Channel {
     // Command to check bot status
     this.bot.command('ping', (ctx) => {
       ctx.reply(`${ASSISTANT_NAME} is online.`);
+    });
+
+    // Command to force-kill a stalled agent and start fresh
+    this.bot.command('reset', (ctx) => {
+      const chatJid = `tg:${ctx.chat.id}`;
+      const group = this.opts.registeredGroups()[chatJid];
+      if (!group) {
+        ctx.reply('Not a registered chat.');
+        return;
+      }
+      const killed = this.opts.onReset?.(chatJid) ?? false;
+      if (killed) {
+        ctx.reply('Reset. Agent killed — send me something to start fresh.');
+      } else {
+        ctx.reply('Nothing running. Send me something to start.');
+      }
     });
 
     this.bot.on('message:text', async (ctx) => {
@@ -168,7 +187,47 @@ export class TelegramChannel implements Channel {
       signalNewMessage();
     };
 
-    this.bot.on('message:photo', (ctx) => storeNonText(ctx, '[Photo]'));
+    this.bot.on('message:photo', async (ctx) => {
+      const chatJid = `tg:${ctx.chat.id}`;
+      const group = this.opts.registeredGroups()[chatJid];
+
+      // Download and save photo
+      let placeholder = '[Photo]';
+      try {
+        const photos = ctx.message.photo;
+        const largestPhoto = photos[photos.length - 1]; // Get highest resolution
+        const file = await ctx.api.getFile(largestPhoto.file_id);
+        const url = `https://api.telegram.org/file/bot${this.botToken}/${file.file_path}`;
+
+        // Create media directory if needed
+        const mediaDir = path.join(process.cwd(), 'data', 'telegram-media');
+        await fs.promises.mkdir(mediaDir, { recursive: true });
+
+        // Download photo
+        const resp = await fetch(url);
+        if (resp.ok) {
+          const buffer = Buffer.from(await resp.arrayBuffer());
+          const timestamp = Date.now();
+          const filename = `photo_${chatJid.replace(':', '_')}_${timestamp}.jpg`;
+          const filepath = path.join(mediaDir, filename);
+          await fs.promises.writeFile(filepath, buffer);
+
+          placeholder = `[Photo: ${filepath}]`;
+          logger.info({ chatJid, filepath, bytes: buffer.length }, 'Downloaded Telegram photo');
+
+          // Also save to Desktop for easy access
+          if (chatJid === 'tg:414798121') { // Main chat
+            const desktopPath = path.join(process.env.HOME || '', 'Desktop', 'latest-telegram-photo.jpg');
+            await fs.promises.writeFile(desktopPath, buffer);
+            logger.info({ desktopPath }, 'Saved photo to Desktop');
+          }
+        }
+      } catch (err) {
+        logger.error({ err }, 'Telegram photo download error');
+      }
+
+      storeNonText(ctx, placeholder);
+    });
     this.bot.on('message:video', (ctx) => storeNonText(ctx, '[Video]'));
     this.bot.on('message:voice', async (ctx) => {
       const chatJid = `tg:${ctx.chat.id}`;

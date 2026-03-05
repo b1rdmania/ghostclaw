@@ -207,6 +207,19 @@ export class GroupQueue {
     }
   }
 
+  /**
+   * Force-kill the active agent process for a group.
+   * Returns true if a process was killed, false if nothing was running.
+   */
+  killAgent(groupJid: string): boolean {
+    const state = this.getGroup(groupJid);
+    if (!state.process || state.process.killed) return false;
+
+    logger.info({ groupJid }, 'Force-killing agent process (/reset)');
+    state.process.kill('SIGKILL');
+    return true;
+  }
+
   private async runForGroup(
     groupJid: string,
     reason: 'messages' | 'drain',

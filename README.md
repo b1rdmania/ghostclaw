@@ -136,6 +136,18 @@ systemctl --user start ghostclaw
 systemctl --user restart ghostclaw
 ```
 
+## Telegram commands
+
+These work in any registered Telegram chat:
+
+| Command | What it does |
+|---------|-------------|
+| `/reset` | Force-kills a stalled agent. Next message starts fresh. |
+| `/ping` | Check if the bot is online. |
+| `/chatid` | Show the chat's registration ID. |
+
+`/reset` is the one you'll use most — if the bot seems stuck or unresponsive, type `/reset` and send another message.
+
 ## Updating
 
 ```
