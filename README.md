@@ -19,17 +19,23 @@ An AI agent that lives on your computer and works for you. Message it on Telegra
 
 ## Get started
 
-Best on a dedicated machine — a Mac Mini, an old laptop, a VPS. Fresh accounts, let it grow. You _can_ run it on your daily driver, but GhostClaw runs autonomously, installs things, writes files, runs tasks on its own schedule. Give it a machine it can own.
+You need two things: a [Claude](https://claude.ai) account (Max or API keys) and a computer to run it on. Best on a dedicated machine — a Mac Mini, an old laptop, a VPS. You _can_ run it on your daily driver, but GhostClaw runs autonomously, so give it a machine it can own.
 
-### 1. Install Claude Code
+### 1. Open Terminal
 
-If you haven't already — open Terminal and run:
+On Mac: press `Cmd + Space`, type "Terminal", hit enter. That's your command line.
+
+### 2. Install Claude Code
+
+Paste this and hit enter:
 
 ```bash
 npm install -g @anthropic-ai/claude-code
 ```
 
-### 2. Clone and launch
+(If you get a "npm not found" error, you need [Node.js](https://nodejs.org) first — download the LTS version, install it, then try again.)
+
+### 3. Clone GhostClaw and let Claude do the rest
 
 ```bash
 git clone https://github.com/b1rdmania/ghostclaw.git
@@ -38,17 +44,9 @@ npm install
 claude
 ```
 
-### 3. Let Claude walk you through setup
+Claude reads the setup instructions automatically and walks you through everything — connecting Telegram, adding your API keys, setting up personality. You just answer questions. About 10 minutes.
 
-Inside Claude Code, type:
-
-```
-/setup-ghostclaw
-```
-
-Claude handles everything interactively — Telegram bot from BotFather, API keys, personality, background service. About 10 minutes. You just answer questions.
-
-**Requirements:** Node.js 20+, macOS or Linux, Claude Max or API key.
+**Requirements:** Node.js 20+, macOS or Linux, Claude Max or API keys.
 
 ## What's included
 
