@@ -1,7 +1,0 @@
-{
-  "name": "brand-naming",
-  "description": "Systematic brand naming process with availability checks and anti-generic guardrails",
-  "version": "1.0.0",
-  "trigger": "brand name, name this, what should I call, naming help, suggest names",
-  "instructions": "instructions.md"
-}
