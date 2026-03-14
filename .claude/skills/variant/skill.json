@@ -1,0 +1,14 @@
+{
+  "name": "variant",
+  "description": "Apply Variant.com JSON exports to existing codebases, update components with variant data, commit and deploy to Vercel",
+  "triggers": [
+    "variant",
+    "apply variant",
+    "variant json",
+    "update with variant",
+    "variant export"
+  ],
+  "version": "1.0.0",
+  "author": "GhostClaw",
+  "tags": ["design", "variant", "automation", "deployment"]
+}
