@@ -39,49 +39,62 @@ Flag patterns like:
 - Quantum, Neural, Synapse, Cortex, Axon
 - Zenith, Pinnacle, Ascent, Rise, Uplift
 - Bolt, Flash, Rocket, Lightning, Surge
+- **Lumen, Aether, Veritas** - Latin/Greek cliches
+- Any word that sounds like "I typed 'AI company name' into ChatGPT"
 
-### Step 3: Generate Names Using Frameworks
+**Self-check before suggesting:**
+- Would a human brand strategist laugh at this?
+- Is this a word-association result or a real insight?
+- Does this name tell a story or just sound modern?
 
-Use these **distinct approaches** (not all at once):
+### Step 3: Think Like a Brand Strategist (Not an LLM)
 
-#### A. Portmanteaus
-Combine real words in unexpected ways:
-- MailChimp = Mail + Chimp
-- Pinterest = Pin + Interest
-- Shopify = Shop + -ify
+**STOP. Do not proceed to frameworks yet.**
 
-Generate 3-5 portmanteaus from relevant words.
+First, deeply understand the **actual problem being solved**:
+- What pain does this solve?
+- What's the emotional transformation?
+- What metaphor captures the essence of the work?
 
-#### B. Latin/Greek Roots
-Use roots that fit the meaning:
-- Vertex = highest point (overdone, avoid)
-- Lumen = light
-- Aether = upper air
-- Veritas = truth
+**Example:**
+- Bad: "AI dev agency" → Lumen, Vertex, Nexus (generic)
+- Good: "Threading AI through legacy systems without disruption" → Graft, Weft, Seam (specific metaphors)
 
-Generate 3-5 names from lesser-known roots.
+**Ask yourself:**
+1. What **real-world objects or processes** mirror what this company does?
+2. What **existing words** already capture the feeling/transformation?
+3. What would a **human creative director** suggest if they couldn't use AI?
 
-#### C. Misspellings/Respellings
-Take a real word and alter spelling:
-- Flickr, Tumblr, Scribd
-- Lyft, Fiverr
+**Now generate using these approaches:**
 
-Generate 3-5 respelled names.
+#### A. Deep Metaphors (BEST approach)
+Find objects/processes that mirror the value:
+- **Graft** - Adding new growth to established systems
+- **Riff** - Jazz improvisation on existing melodies
+- **Weft** - Threads that integrate into existing fabric
+- **Patch** - Software/quilting term for adding without replacing
+- **Seam** - Where old meets new
 
-#### D. Metaphors
-Objects/concepts that represent the value:
-- Stripe = clean, simple lines
-- Slack = reducing tension
-- Notion = idea/concept
+Think: farming, music, textiles, architecture, cooking, biology.
+Generate 5 metaphor names with **real meaning**, not word salad.
 
-Generate 3-5 metaphor-based names.
+#### B. Meaningful Portmanteaus
+Combine words that tell the story:
+- Good: Shopify (shop + simplify), Pinterest (pin + interest)
+- Bad: CodeAI, TechFlow, DataMind (lazy combinations)
 
-#### E. Made-up Words
-Invent phonetically pleasing syllables:
-- Spotify, Zillow, Hulu
-- Should feel pronounceable but unique
+Only use if the combination reveals insight.
 
-Generate 3-5 invented names.
+#### C. Respellings (Use Sparingly)
+Only if the original word is perfect but taken:
+- Lyft (lift), Fiverr (fiver)
+- Must be instantly recognizable
+
+#### D. Invented Words (Last Resort)
+Only create if metaphors don't land:
+- Must be pronounceable first try
+- Should suggest meaning through sound
+- Test: would a human remember this?
 
 ### Step 4: Availability Checks
 
