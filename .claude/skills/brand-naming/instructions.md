@@ -119,29 +119,41 @@ Only create if metaphors don't land:
 - Should suggest meaning through sound
 - Test: would a human remember this?
 
-### Step 4: Availability Checks
+### Step 4: Generate AND Check Availability (Do NOT Skip This)
 
-For each promising name candidate:
+**CRITICAL:** Do not present names to the user without checking availability first.
 
-1. **Domain check** - Use the Namecheap MCP skill:
+**Process:**
+1. Generate 10-15 candidate names using the frameworks above
+2. Check ALL of them for availability BEFORE showing to user
+3. Only present names that pass all checks
+
+**For each candidate, check:**
+
+1. **Company existence** - Web search:
+   ```
+   Search "[name] company AI tech 2026"
+   ```
+   If there's a funded startup, public company, or major product with this name, **discard immediately**.
+
+2. **Domain check** - Use Namecheap MCP:
    ```
    Check if [name].com, [name].io, [name].ai are available
    ```
+   At minimum, need .ai or .io available. .com taken is acceptable if others are free.
 
-2. **Twitter check** - Search Twitter:
+3. **Twitter check** - Search:
    ```
-   Search Twitter for "@[name]" to see if handle is taken
+   Search "@[name]" twitter
    ```
+   If handle is taken by an active tech account, flag it.
 
-3. **Basic trademark check** - Web search:
-   ```
-   Search "[name] trademark" and "[name] company" to flag obvious conflicts
-   ```
+**Only after filtering, present 3-5 names that:**
+- Pass company existence check (no major conflicts)
+- Have domains available (.ai or .io minimum)
+- Are elegant AND meaningful
 
-4. **Google test** - Does it dominate results?
-   ```
-   Search "[name]" - if first page is all unrelated, it's unique
-   ```
+**If all names are taken:** Generate a new batch with more esoteric/unique words.
 
 ### Step 5: Linguistic Tests
 
