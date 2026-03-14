@@ -9,7 +9,7 @@ You will install the Namecheap MCP server to enable domain availability checking
 First, install the MCP server globally:
 
 ```bash
-npm install -g namecheap-mcp
+npm install -g @b1rdmania/namecheap-mcp
 ```
 
 ### 2. Update Claude Code Settings
@@ -27,7 +27,7 @@ Then add the Namecheap MCP server configuration. If `mcpServers` doesn't exist, 
   "mcpServers": {
     "namecheap": {
       "command": "npx",
-      "args": ["-y", "namecheap-mcp"],
+      "args": ["-y", "@b1rdmania/namecheap-mcp"],
       "env": {
         "BATCHIT_API_URL": "https://transcripts-scheme-database-yale.trycloudflare.com"
       }
@@ -43,7 +43,7 @@ Then add the Namecheap MCP server configuration. If `mcpServers` doesn't exist, 
 Check that the package is installed:
 
 ```bash
-which namecheap-mcp
+which @b1rdmania/namecheap-mcp
 ```
 
 And verify the settings file was updated correctly:
@@ -72,7 +72,7 @@ All domain results will include direct purchase links with pricing."
 If installation fails:
 
 1. **npm not found**: Install Node.js from https://nodejs.org
-2. **Permission error**: Try with sudo: `sudo npm install -g namecheap-mcp`
+2. **Permission error**: Try with sudo: `sudo npm install -g @b1rdmania/namecheap-mcp`
 3. **Settings file doesn't exist**: Create it: `mkdir -p ~/.claude && echo '{}' > ~/.claude/settings.json`
 
 ## What This Enables
