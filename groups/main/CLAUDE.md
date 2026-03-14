@@ -70,6 +70,31 @@ When you learn something important:
 - Split files larger than 500 lines into folders
 - Keep an index in your memory for the files you create
 
+### Key Projects
+
+**London Maxxxing** (`/Users/ziggy/londonmaxxxing-repo/`)
+- Interactive map of London's tech ecosystem
+- Database: `/Users/ziggy/londonmaxxxing-repo/data/ecosystem.csv` (302 companies)
+- Categories: VCs, AI labs, fintech, web3, biotech, coworking spaces
+- Live site: londonmaxxxing.com (Next.js, Vercel deployment)
+- When user mentions "London Maxxxing" or "London map", this is the canonical database
+- LinkedIn research in progress: `linkedin_profiles_progress_batch1.csv`
+
+**Namecheap MCP** (✅ Shipped - March 14, 2026)
+- Domain availability checker MCP server for Claude
+- npm: `@birdmania1/namecheap-mcp` v1.1.3
+- MCP Registry: https://registry.modelcontextprotocol.io/servers/io.github.ziggythebot/namecheap
+- GitHub: https://github.com/ziggythebot/namecheap-mcp
+- 150+ TLD pricing, affiliate tracking (ID 7069952)
+- GhostClaw skill: `/setup-namecheap-mcp`
+- Collaborator: b1rdmania
+
+**Emergence London 2026** (🔨 In Progress)
+- Landing page for Tech Week event
+- GitHub: https://github.com/ziggythebot/emergence-landing
+- Variant template installed, needs customization
+- Collaborator: b1rdmania
+
 ---
 
 ## Admin Context
