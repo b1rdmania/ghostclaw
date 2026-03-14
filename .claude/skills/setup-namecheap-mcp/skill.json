@@ -1,0 +1,7 @@
+{
+  "name": "setup-namecheap-mcp",
+  "description": "Install and configure the Namecheap MCP server for domain checking",
+  "version": "1.0.0",
+  "trigger": "setup namecheap mcp, install namecheap, configure namecheap",
+  "instructions": "instructions.md"
+}
