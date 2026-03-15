@@ -1,4 +1,4 @@
-import { ChildProcess } from 'child_process';
+import { ChildProcess, execSync } from 'child_process';
 import { CronExpressionParser } from 'cron-parser';
 import fs from 'fs';
 
@@ -127,6 +127,78 @@ async function runTask(
       next_run: t.next_run,
     })),
   );
+
+  // Run pre_check script if defined — skip agent if script exits 0 with no output
+  if (task.pre_check) {
+    try {
+      const preCheckOutput = execSync(task.pre_check, {
+        timeout: 30000,
+        encoding: 'utf-8',
+        cwd: groupDir,
+        env: { ...process.env, GHOSTCLAW_GROUP_DIR: groupDir },
+      }).trim();
+
+      if (!preCheckOutput) {
+        // Script exited 0 with no output — nothing to do, skip agent
+        logger.info(
+          { taskId: task.id },
+          'Pre-check passed with no output, skipping agent',
+        );
+        logTaskRun({
+          task_id: task.id,
+          run_at: new Date().toISOString(),
+          duration_ms: Date.now() - startTime,
+          status: 'success',
+          result: 'Pre-check: nothing to do',
+          error: null,
+        });
+
+        // Still advance next_run
+        let nextRun: string | null = null;
+        if (task.schedule_type === 'cron') {
+          const interval = CronExpressionParser.parse(task.schedule_value, {
+            tz: TIMEZONE,
+          });
+          nextRun = interval.next().toISOString();
+        } else if (task.schedule_type === 'interval') {
+          const ms = parseInt(task.schedule_value, 10);
+          nextRun = new Date(Date.now() + ms).toISOString();
+        }
+        updateTaskAfterRun(task.id, nextRun, 'Pre-check: nothing to do');
+        return;
+      }
+
+      // Script produced output — inject it into the prompt as context
+      logger.info(
+        { taskId: task.id, outputLength: preCheckOutput.length },
+        'Pre-check produced output, spawning agent',
+      );
+      task = {
+        ...task,
+        prompt: task.prompt.includes('{{pre_check_output}}')
+          ? task.prompt.replace('{{pre_check_output}}', preCheckOutput)
+          : `${task.prompt}\n\nPre-check output:\n${preCheckOutput}`,
+      };
+    } catch (err) {
+      // Non-zero exit — treat as "needs attention", pass stderr/stdout to agent
+      const execErr = err as { stdout?: string; stderr?: string; status?: number };
+      const preCheckOutput = (execErr.stdout || execErr.stderr || '').trim();
+
+      if (preCheckOutput) {
+        logger.info(
+          { taskId: task.id, exitCode: execErr.status },
+          'Pre-check exited non-zero with output, spawning agent',
+        );
+        task = {
+          ...task,
+          prompt: task.prompt.includes('{{pre_check_output}}')
+            ? task.prompt.replace('{{pre_check_output}}', preCheckOutput)
+            : `${task.prompt}\n\nPre-check output:\n${preCheckOutput}`,
+        };
+      }
+      // If no output at all, still proceed to agent (non-zero exit = something's wrong)
+    }
+  }
 
   let result: string | null = null;
   let error: string | null = null;

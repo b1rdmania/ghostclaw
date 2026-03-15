@@ -42,6 +42,7 @@ Agents run directly on the host machine. `container-runner.ts` spawns `node` pro
 | `/add-voice-reply` | Voice replies via ElevenLabs TTS |
 | `/add-telegram-swarm` | Multi-bot agent teams |
 | `/add-slack` | Slack channel integration |
+| `/pr-babysitter` | Automated PR monitoring with CI fix and review resolution |
 | `/run-ralph` | Autonomous multi-task loop |
 | `/debug` | Troubleshooting guide |
 | `/customize` | Adding channels, integrations, changing behavior |
