@@ -1,6 +1,6 @@
 ---
 name: setup-ghostclaw
-description: First-time GhostClaw setup. Handles dependencies, authentication, channel configuration, main chat registration, soul building, and service setup. Run this instead of NanoClaw's /setup.
+description: First-time GhostClaw setup. Handles dependencies, authentication, channel configuration, main chat registration, soul building, and service setup. Use this for all new installs.
 ---
 
 # GhostClaw Setup

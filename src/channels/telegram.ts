@@ -213,11 +213,19 @@ export class TelegramChannel implements Channel {
           await fs.promises.writeFile(filepath, buffer);
 
           placeholder = `[Photo: ${filepath}]`;
-          logger.info({ chatJid, filepath, bytes: buffer.length }, 'Downloaded Telegram photo');
+          logger.info(
+            { chatJid, filepath, bytes: buffer.length },
+            'Downloaded Telegram photo',
+          );
 
           // Also save to Desktop for easy access
-          if (chatJid === 'tg:414798121') { // Main chat
-            const desktopPath = path.join(process.env.HOME || '', 'Desktop', 'latest-telegram-photo.jpg');
+          if (chatJid === 'tg:414798121') {
+            // Main chat
+            const desktopPath = path.join(
+              process.env.HOME || '',
+              'Desktop',
+              'latest-telegram-photo.jpg',
+            );
             await fs.promises.writeFile(desktopPath, buffer);
             logger.info({ desktopPath }, 'Saved photo to Desktop');
           }
@@ -335,9 +343,11 @@ export class TelegramChannel implements Channel {
           parse_mode: 'HTML',
         });
       } else {
-        // Split on newlines to avoid breaking HTML tags mid-tag
+        // Split on newlines, closing/reopening HTML tags across chunk boundaries
         const chunks: string[] = [];
         let current = '';
+        const TELEGRAM_TAGS = ['pre', 'code', 'b', 'i', 'u', 's', 'a'];
+
         for (const line of html.split('\n')) {
           if (current.length + line.length + 1 > MAX_LENGTH) {
             if (current) chunks.push(current);
@@ -348,7 +358,35 @@ export class TelegramChannel implements Channel {
         }
         if (current) chunks.push(current);
 
+        // Fix unclosed tags in each chunk
+        const fixedChunks: string[] = [];
+        let carryTags: string[] = []; // tags to reopen in next chunk
         for (const chunk of chunks) {
+          let fixed = carryTags.map((t) => `<${t}>`).join('') + chunk;
+
+          // Track which tags are open at the end of this chunk
+          const openTags: string[] = [];
+          for (const tag of TELEGRAM_TAGS) {
+            const opens = (
+              fixed.match(new RegExp(`<${tag}(\\s|>)`, 'gi')) || []
+            ).length;
+            const closes = (fixed.match(new RegExp(`</${tag}>`, 'gi')) || [])
+              .length;
+            for (let i = 0; i < opens - closes; i++) {
+              openTags.push(tag);
+            }
+          }
+
+          // Close any unclosed tags at end of this chunk (reverse order)
+          carryTags = [...openTags];
+          for (const tag of [...openTags].reverse()) {
+            fixed += `</${tag}>`;
+          }
+
+          fixedChunks.push(fixed);
+        }
+
+        for (const chunk of fixedChunks) {
           await this.bot.api.sendMessage(numericId, chunk, {
             parse_mode: 'HTML',
           });

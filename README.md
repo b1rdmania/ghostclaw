@@ -44,7 +44,13 @@ npm install
 claude
 ```
 
-Claude reads the setup instructions automatically and walks you through everything — connecting Telegram, adding your API keys, setting up personality. You just answer questions. About 10 minutes.
+Once Claude starts, run the setup skill:
+
+```
+/setup-ghostclaw
+```
+
+This walks you through everything — connecting Telegram, adding your API keys, setting up personality. You just answer questions. About 10 minutes.
 
 **Requirements:** Node.js 20+, macOS or Linux, Claude Max or API keys.
 
