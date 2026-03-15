@@ -181,7 +181,11 @@ async function runTask(
       };
     } catch (err) {
       // Non-zero exit — treat as "needs attention", pass stderr/stdout to agent
-      const execErr = err as { stdout?: string; stderr?: string; status?: number };
+      const execErr = err as {
+        stdout?: string;
+        stderr?: string;
+        status?: number;
+      };
       const preCheckOutput = (execErr.stdout || execErr.stderr || '').trim();
 
       if (preCheckOutput) {

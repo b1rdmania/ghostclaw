@@ -85,6 +85,16 @@ Report the migration results (how many ran, any failures).
 
 If migrations fail, warn the user but continue — they may need to fix something manually.
 
+### 4b. Check for template updates
+
+If the upstream changed `groups/main/CLAUDE.md.template` or `groups/global/CLAUDE.md.template`, inform the user:
+
+```bash
+git diff HEAD~$(git log HEAD..origin/main --oneline | wc -l)..HEAD --name-only | grep 'CLAUDE.md.template'
+```
+
+If any templates changed, tell the user: "The CLAUDE.md template was updated upstream. Your personalised `groups/main/CLAUDE.md` is untouched — review the template changes if you want to incorporate any new sections."
+
 ### 5. Build and validate
 
 ```bash

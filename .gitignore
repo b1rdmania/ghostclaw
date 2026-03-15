@@ -15,9 +15,9 @@ groups/*
 !groups/global/
 groups/main/*
 groups/global/*
-!groups/main/CLAUDE.md
+!groups/main/CLAUDE.md.template
 !groups/main/skills-research-report.md
-!groups/global/CLAUDE.md
+!groups/global/CLAUDE.md.template
 
 # Secrets
 *.keys.json

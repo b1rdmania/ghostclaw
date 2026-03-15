@@ -184,7 +184,12 @@ AskUserQuestion: "What should the bot proactively help with?"
 
 ### Generate the soul
 
-Based on answers, write `groups/main/CLAUDE.md` with:
+If `groups/main/CLAUDE.md` doesn't exist yet, copy the template first:
+```bash
+cp groups/main/CLAUDE.md.template groups/main/CLAUDE.md
+```
+
+Then customise `groups/main/CLAUDE.md` based on the user's answers. The template provides the base structure — overwrite the placeholder sections with:
 
 1. **Identity section** — bot name, what it does
 2. **Soul section** — communication style, banned patterns, user context
