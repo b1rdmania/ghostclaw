@@ -47,6 +47,7 @@ Agents run directly on the host machine. `container-runner.ts` spawns `node` pro
 | `/debug` | Troubleshooting guide |
 | `/customize` | Adding channels, integrations, changing behavior |
 | `/update-nanoclaw` | Cherry-pick upstream NanoClaw updates |
+| `/design` | Design system + best practices (Impeccable framework) |
 
 ## Community
 
