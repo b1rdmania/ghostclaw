@@ -1,0 +1,119 @@
+{
+  "name": "Emergence",
+  "description": "London Tech Week 2026 event aggregator - brutalist aesthetic with sharp edges and bold colors",
+  "fonts": {
+    "heading": "Epilogue",
+    "body": "DM Sans",
+    "mono": "JetBrains Mono"
+  },
+  "colors": {
+    "primary": "#00D27F",
+    "secondary": "#FFD600",
+    "accent": "#FF5733",
+    "ink": "#251720",
+    "text": "#251720",
+    "background": "#FFFFFF",
+    "surface": "#F8F8F8",
+    "border": "#251720"
+  },
+  "spacing": {
+    "base": "8px",
+    "xs": "4px",
+    "sm": "8px",
+    "md": "16px",
+    "lg": "24px",
+    "xl": "32px",
+    "2xl": "48px",
+    "3xl": "64px"
+  },
+  "typography": {
+    "h1": "64px",
+    "h2": "48px",
+    "h3": "32px",
+    "h4": "24px",
+    "h5": "20px",
+    "body": "16px",
+    "small": "14px",
+    "xs": "12px"
+  },
+  "borders": {
+    "default": "3px",
+    "thick": "5px",
+    "radius-none": "0px",
+    "radius-full": "9999px"
+  },
+  "rules": [
+    "Always use 3px borders",
+    "No rounded corners except circles (radius-full for circles only)",
+    "No gradients anywhere",
+    "Use network node colors: #00D27F (green), #FFD600 (yellow), #FF5733 (red)",
+    "Epilogue for all headings (bold, geometric)",
+    "DM Sans for all body text",
+    "JetBrains Mono for code and technical content",
+    "Brutalist aesthetic: sharp edges, bold colors, strong contrast",
+    "Cards have 3px solid borders, no shadows",
+    "Buttons are rectangular with 3px borders, no rounded corners",
+    "Layout is grid-based with strong alignment",
+    "Use high contrast: dark ink (#251720) on white",
+    "Section spacing is generous (48px or 64px)"
+  ],
+  "components": {
+    "button-primary": {
+      "background": "#00D27F",
+      "color": "#251720",
+      "padding": "12px 24px",
+      "borderRadius": "0px",
+      "border": "3px solid #251720",
+      "fontWeight": "700",
+      "fontSize": "16px",
+      "fontFamily": "DM Sans"
+    },
+    "button-secondary": {
+      "background": "#FFFFFF",
+      "color": "#251720",
+      "padding": "12px 24px",
+      "borderRadius": "0px",
+      "border": "3px solid #251720",
+      "fontWeight": "700",
+      "fontSize": "16px",
+      "fontFamily": "DM Sans"
+    },
+    "card": {
+      "padding": "24px",
+      "background": "#FFFFFF",
+      "borderRadius": "0px",
+      "border": "3px solid #251720",
+      "boxShadow": "none"
+    },
+    "input": {
+      "padding": "12px 16px",
+      "border": "3px solid #251720",
+      "borderRadius": "0px",
+      "fontSize": "16px",
+      "fontFamily": "DM Sans"
+    }
+  },
+  "examples": {
+    "correct": [
+      "border: 3px solid #251720",
+      "borderRadius: 0px (sharp edges)",
+      "background: #00D27F (network node green)",
+      "fontFamily: 'Epilogue' (headings)",
+      "fontFamily: 'DM Sans' (body)",
+      "boxShadow: none (brutalist - no shadows)"
+    ],
+    "incorrect": [
+      "borderRadius: 8px (no rounded corners except circles)",
+      "border: 1px solid (use 3px)",
+      "background: linear-gradient(...) (no gradients)",
+      "boxShadow: 0 4px 6px... (no shadows in brutalist design)",
+      "fontFamily: 'Inter' (use Epilogue for headings, DM Sans for body)"
+    ]
+  },
+  "networkNodeColors": {
+    "description": "Colors represent different types of events/venues in the London tech ecosystem",
+    "green": "#00D27F",
+    "yellow": "#FFD600",
+    "red": "#FF5733"
+  }
+}
