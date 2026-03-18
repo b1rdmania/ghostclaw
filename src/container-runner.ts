@@ -293,6 +293,11 @@ export async function runContainerAgent(
     agentProcess.stdout.on('data', (data) => {
       const chunk = data.toString();
 
+      // Reset idle timeout on any stdout activity — the agent is alive and working.
+      // Without this, long tasks with no output markers (builds, deploys) time out
+      // even though the agent process is actively running.
+      resetTimeout();
+
       if (!stdoutTruncated) {
         const remaining = CONTAINER_MAX_OUTPUT_SIZE - stdout.length;
         if (chunk.length > remaining) {
@@ -325,7 +330,6 @@ export async function runContainerAgent(
               newSessionId = parsed.newSessionId;
             }
             hadStreamingOutput = true;
-            resetTimeout();
             outputChain = outputChain.then(() => onOutput(parsed));
           } catch (err) {
             logger.warn(
