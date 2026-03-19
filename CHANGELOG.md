@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.6.0 (2026-03-19) — Reliability + remote control
+
+### Fixes
+- Infinite retry loop eliminated: `scheduleRetry` no longer resets `retryCount` after `MAX_RETRIES`. Previously, a group that hit max retries would silently reset the counter and retry forever.
+- Orphaned agent processes from previous runs are now killed on startup. PIDs are tracked in `data/agent-pids.json` and cleaned up on boot, preventing slot starvation and timeout cascades after a crash or forced restart.
+
+### New
+- `/status` command: shows active agents per group, queue depth (pending tasks + messages), and uptime. Available via Telegram.
+- `/skills` command: lists all installed skills with descriptions, read live from `.claude/skills/`. Available via Telegram.
+- Telegram command menu: `setMyCommands()` called at startup so all commands appear with descriptions when the user types `/`.
+- `GroupQueue.getStatus()`: exposes live queue state (active count, waiting groups, per-group task/message queues) for external consumers.
+
 ## v0.5.5 (2026-03-18) — Remote control hotfix
 
 ### Fixes

@@ -2,7 +2,7 @@
  * Agent Runner for GhostClaw
  * Spawns agent execution as direct Node.js processes (no containers)
  */
-import { ChildProcess, spawn } from 'child_process';
+import { ChildProcess, spawn, execSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 
@@ -194,7 +194,6 @@ function getAgentRunnerEntrypoint(): string {
 
   if (!fs.existsSync(distEntry)) {
     logger.info('Agent runner not compiled, compiling now...');
-    const { execSync } = require('child_process');
     execSync('npx tsc', { cwd: agentRunnerRoot, stdio: 'pipe' });
   }
 

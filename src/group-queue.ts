@@ -283,6 +283,43 @@ export class GroupQueue {
     }
   }
 
+  getStatus(): {
+    active: number;
+    waiting: number;
+    groups: {
+      jid: string;
+      active: boolean;
+      queuedTasks: number;
+      queuedMessages: boolean;
+    }[];
+  } {
+    const groups: {
+      jid: string;
+      active: boolean;
+      queuedTasks: number;
+      queuedMessages: boolean;
+    }[] = [];
+    for (const [jid, state] of this.groups) {
+      if (
+        state.active ||
+        state.pendingTasks.length > 0 ||
+        state.pendingMessages
+      ) {
+        groups.push({
+          jid,
+          active: state.active,
+          queuedTasks: state.pendingTasks.length,
+          queuedMessages: state.pendingMessages,
+        });
+      }
+    }
+    return {
+      active: this.activeCount,
+      waiting: this.waitingGroups.length,
+      groups,
+    };
+  }
+
   private scheduleRetry(groupJid: string, state: GroupState): void {
     state.retryCount++;
     if (state.retryCount > MAX_RETRIES) {
@@ -290,7 +327,6 @@ export class GroupQueue {
         { groupJid, retryCount: state.retryCount },
         'Max retries exceeded, dropping messages (will retry on next incoming message)',
       );
-      state.retryCount = 0;
       return;
     }
 
