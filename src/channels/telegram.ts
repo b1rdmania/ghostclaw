@@ -86,11 +86,11 @@ export class TelegramChannel implements Channel {
 
       try {
         execSync('git fetch origin', { cwd, encoding: 'utf-8' });
-        const resetOut = execSync('git reset --hard origin/main', {
+        const rebaseOut = execSync('git rebase origin/main', {
           cwd,
           encoding: 'utf-8',
         });
-        await ctx.reply(`Updated: ${resetOut.trim()}`);
+        await ctx.reply(`Updated: ${rebaseOut.trim()}`);
 
         await ctx.reply('Building...');
         execSync('npm run build', { cwd, encoding: 'utf-8', timeout: 120_000 });
