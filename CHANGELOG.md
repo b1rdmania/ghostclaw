@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.6.2 (2026-03-19) — /update hotfix
+
+### Fixes
+- **`/update` no longer fails after applying a skill.** Skills apply patches and commit locally, which caused `git pull` to fail with "divergent branches". `/update` now uses `git fetch origin && git rebase origin/main` — fast-forwards when clean, replays local skill commits on top of upstream changes when not.
+
 ## v0.6.1 (2026-03-19) — Dual timeout for stuck agents
 
 ### Fixes
