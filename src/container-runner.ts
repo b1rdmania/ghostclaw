@@ -360,8 +360,7 @@ export async function runContainerAgent(
     let timedOut = false;
     let timeoutReason: 'idle' | 'absolute' | null = null;
     let hadStreamingOutput = false;
-    const configTimeout = group.containerConfig?.timeout || CONTAINER_TIMEOUT;
-    const absoluteTimeoutMs = Math.min(configTimeout, AGENT_ABSOLUTE_TIMEOUT);
+    const absoluteTimeoutMs = AGENT_ABSOLUTE_TIMEOUT;
     const idleTimeoutMs = Math.min(AGENT_IDLE_TIMEOUT, absoluteTimeoutMs);
 
     let timeoutHandled = false;
