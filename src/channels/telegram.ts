@@ -67,7 +67,9 @@ export class TelegramChannel implements Channel {
         return;
       }
       this.opts.onReset?.(chatJid);
-      ctx.reply('Reset. Agent killed and queue cleared — send me something to start fresh.');
+      ctx.reply(
+        'Reset. Agent killed and queue cleared — send me something to start fresh.',
+      );
     });
 
     // Command to pull latest code and restart
@@ -133,7 +135,9 @@ export class TelegramChannel implements Channel {
         const content = fs.readFileSync(skillMd, 'utf-8');
         const descMatch = content.match(/^description:\s*(.+)$/m);
         const desc = descMatch ? descMatch[1].trim() : '';
-        lines.push(`• <code>/${dir}</code>${desc ? ` — ${desc.slice(0, 80)}` : ''}`);
+        lines.push(
+          `• <code>/${dir}</code>${desc ? ` — ${desc.slice(0, 80)}` : ''}`,
+        );
       }
       const text = lines.length > 1 ? lines.join('\n') : 'No skills installed.';
       // Chunk if needed — Telegram 4096 char limit
@@ -354,14 +358,19 @@ export class TelegramChannel implements Channel {
     });
 
     // Register commands in Telegram's menu (shows when user types /)
-    await this.bot.api.setMyCommands([
-      { command: 'ping', description: 'Check the bot is online' },
-      { command: 'status', description: 'Active agents, queue depth, uptime' },
-      { command: 'skills', description: 'List installed skills' },
-      { command: 'reset', description: 'Kill stalled agent and clear queue' },
-      { command: 'update', description: 'Pull latest code and restart' },
-      { command: 'chatid', description: 'Get this chat\'s registration ID' },
-    ]).catch((err) => logger.warn({ err }, 'setMyCommands failed (non-fatal)'));
+    await this.bot.api
+      .setMyCommands([
+        { command: 'ping', description: 'Check the bot is online' },
+        {
+          command: 'status',
+          description: 'Active agents, queue depth, uptime',
+        },
+        { command: 'skills', description: 'List installed skills' },
+        { command: 'reset', description: 'Kill stalled agent and clear queue' },
+        { command: 'update', description: 'Pull latest code and restart' },
+        { command: 'chatid', description: "Get this chat's registration ID" },
+      ])
+      .catch((err) => logger.warn({ err }, 'setMyCommands failed (non-fatal)'));
 
     return new Promise<void>((resolve) => {
       this.bot!.start({

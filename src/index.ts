@@ -597,9 +597,7 @@ async function main(): Promise<void> {
       const uptimeMin = Math.floor(uptimeMs / 60000);
       const uptimeHr = Math.floor(uptimeMin / 60);
       const uptime =
-        uptimeHr > 0
-          ? `${uptimeHr}h ${uptimeMin % 60}m`
-          : `${uptimeMin}m`;
+        uptimeHr > 0 ? `${uptimeHr}h ${uptimeMin % 60}m` : `${uptimeMin}m`;
 
       const lines = [
         `<b>GhostClaw status</b>`,

@@ -300,7 +300,11 @@ export class GroupQueue {
       queuedMessages: boolean;
     }[] = [];
     for (const [jid, state] of this.groups) {
-      if (state.active || state.pendingTasks.length > 0 || state.pendingMessages) {
+      if (
+        state.active ||
+        state.pendingTasks.length > 0 ||
+        state.pendingMessages
+      ) {
         groups.push({
           jid,
           active: state.active,
@@ -309,7 +313,11 @@ export class GroupQueue {
         });
       }
     }
-    return { active: this.activeCount, waiting: this.waitingGroups.length, groups };
+    return {
+      active: this.activeCount,
+      waiting: this.waitingGroups.length,
+      groups,
+    };
   }
 
   private scheduleRetry(groupJid: string, state: GroupState): void {
