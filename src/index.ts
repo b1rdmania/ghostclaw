@@ -31,6 +31,7 @@ import {
   getRouterState,
   initDatabase,
   setRegisteredGroup,
+  deleteSession,
   setRouterState,
   setSession,
   storeChatMetadata,
@@ -599,6 +600,11 @@ async function main(): Promise<void> {
     registeredGroups: () => registeredGroups,
     onReset: (chatJid: string) => {
       queue.clearQueue(chatJid);
+      const group = registeredGroups[chatJid];
+      if (group) {
+        delete sessions[group.folder];
+        deleteSession(group.folder);
+      }
       return queue.killAgent(chatJid);
     },
     onGetStatus: () => {
