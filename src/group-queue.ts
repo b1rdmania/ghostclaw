@@ -313,9 +313,12 @@ export class GroupQueue {
         });
       }
     }
+    const waiting = groups.filter(
+      (g) => g.queuedTasks > 0 || g.queuedMessages,
+    ).length;
     return {
       active: this.activeCount,
-      waiting: this.waitingGroups.length,
+      waiting,
       groups,
     };
   }
