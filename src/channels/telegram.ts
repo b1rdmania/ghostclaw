@@ -137,7 +137,9 @@ export class TelegramChannel implements Channel {
         const desc = descMatch ? descMatch[1].trim() : '';
         const safeName = escapeXml(dir);
         const safeDesc = desc ? escapeXml(desc.slice(0, 80)) : '';
-        lines.push(`• <code>/${safeName}</code>${safeDesc ? ` — ${safeDesc}` : ''}`);
+        lines.push(
+          `• <code>/${safeName}</code>${safeDesc ? ` — ${safeDesc}` : ''}`,
+        );
       }
       const text = lines.length > 1 ? lines.join('\n') : 'No skills installed.';
       // Chunk if needed — Telegram 4096 char limit

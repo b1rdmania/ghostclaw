@@ -39,7 +39,12 @@ import {
 import { GroupQueue } from './group-queue.js';
 import { resolveGroupFolderPath } from './group-folder.js';
 import { startIpcWatcher } from './ipc.js';
-import { findChannel, formatMessages, formatOutbound, escapeXml } from './router.js';
+import {
+  findChannel,
+  formatMessages,
+  formatOutbound,
+  escapeXml,
+} from './router.js';
 import { startSchedulerLoop } from './task-scheduler.js';
 import { Channel, NewMessage, RegisteredGroup } from './types.js';
 import { logger } from './logger.js';
@@ -494,7 +499,9 @@ function readAgentPids(): number[] {
     const raw: unknown = JSON.parse(fs.readFileSync(agentPidsFile, 'utf-8'));
     if (!Array.isArray(raw)) return [];
     // Accept only positive integers — 0/negative have process-group semantics on POSIX
-    return raw.filter((v): v is number => typeof v === 'number' && Number.isInteger(v) && v > 0);
+    return raw.filter(
+      (v): v is number => typeof v === 'number' && Number.isInteger(v) && v > 0,
+    );
   } catch {
     return [];
   }
