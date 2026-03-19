@@ -71,10 +71,20 @@ function buildGlobalMcpServers(): Record<
     { command: string; args?: string[]; env?: Record<string, string> }
   > = {};
 
-  if (process.env.GMAIL_MCP_ENABLED === '1') {
+  // Load GMAIL_MCP_ENABLED from .env since it's not in the main config readEnvFile() call
+  const gmailConfig = readEnvFile(['GMAIL_MCP_ENABLED']);
+  const gmailEnabled =
+    process.env.GMAIL_MCP_ENABLED === '1' ||
+    gmailConfig.GMAIL_MCP_ENABLED === '1';
+
+  if (gmailEnabled) {
     servers.gmail = {
       command: 'npx',
-      args: ['@gongrzhe/server-gmail-autoauth-mcp'],
+      args: ['-y', '@gongrzhe/server-gmail-autoauth-mcp'],
+      env: {
+        GMAIL_OAUTH_CREDENTIALS_PATH: `${process.env.HOME}/.gmail-mcp/gcp-oauth.keys.json`,
+        GMAIL_CREDENTIALS_PATH: `${process.env.HOME}/.gmail-mcp/credentials.json`,
+      },
     };
   }
 
