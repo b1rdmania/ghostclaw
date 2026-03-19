@@ -39,7 +39,7 @@ import {
 import { GroupQueue } from './group-queue.js';
 import { resolveGroupFolderPath } from './group-folder.js';
 import { startIpcWatcher } from './ipc.js';
-import { findChannel, formatMessages, formatOutbound } from './router.js';
+import { findChannel, formatMessages, formatOutbound, escapeXml } from './router.js';
 import { startSchedulerLoop } from './task-scheduler.js';
 import { Channel, NewMessage, RegisteredGroup } from './types.js';
 import { logger } from './logger.js';
@@ -491,7 +491,10 @@ const agentPidsFile = path.join(DATA_DIR, 'agent-pids.json');
 
 function readAgentPids(): number[] {
   try {
-    return JSON.parse(fs.readFileSync(agentPidsFile, 'utf-8'));
+    const raw: unknown = JSON.parse(fs.readFileSync(agentPidsFile, 'utf-8'));
+    if (!Array.isArray(raw)) return [];
+    // Accept only positive integers — 0/negative have process-group semantics on POSIX
+    return raw.filter((v): v is number => typeof v === 'number' && Number.isInteger(v) && v > 0);
   } catch {
     return [];
   }
@@ -610,7 +613,7 @@ async function main(): Promise<void> {
         lines.push('');
         for (const g of status.groups) {
           const group = registeredGroups[g.jid];
-          const name = group?.name || g.jid;
+          const name = escapeXml(group?.name || g.jid);
           const parts: string[] = [];
           if (g.active) parts.push('running');
           if (g.queuedTasks > 0) parts.push(`${g.queuedTasks} task(s) queued`);
@@ -654,8 +657,13 @@ async function main(): Promise<void> {
     registeredGroups: () => registeredGroups,
     getSessions: () => sessions,
     queue,
-    onProcess: (groupJid, proc, containerName, groupFolder) =>
-      queue.registerProcess(groupJid, proc, containerName, groupFolder),
+    onProcess: (groupJid, proc, containerName, groupFolder) => {
+      queue.registerProcess(groupJid, proc, containerName, groupFolder);
+      if (proc.pid) {
+        trackAgentPid(proc.pid);
+        proc.once('exit', () => untrackAgentPid(proc.pid!));
+      }
+    },
     sendMessage: async (jid, rawText) => {
       const channel = findChannel(channels, jid);
       if (!channel) {

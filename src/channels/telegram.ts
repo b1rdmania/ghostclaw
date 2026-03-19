@@ -7,7 +7,7 @@ import { ASSISTANT_NAME, TRIGGER_PATTERN } from '../config.js';
 import { logger } from '../logger.js';
 import { signalNewMessage } from '../message-signal.js';
 import { transcribeBuffer, textToSpeech } from '../transcription.js';
-import { markdownToTelegramHtml } from '../router.js';
+import { markdownToTelegramHtml, escapeXml } from '../router.js';
 import {
   Channel,
   OnChatMetadata,
@@ -113,16 +113,16 @@ export class TelegramChannel implements Channel {
     });
 
     // Command to list installed skills
-    this.bot.command('skills', (ctx) => {
+    this.bot.command('skills', async (ctx) => {
       const chatJid = `tg:${ctx.chat.id}`;
       const group = this.opts.registeredGroups()[chatJid];
       if (!group) {
-        ctx.reply('Not a registered chat.');
+        await ctx.reply('Not a registered chat.');
         return;
       }
       const skillsDir = path.join(process.cwd(), '.claude', 'skills');
       if (!fs.existsSync(skillsDir)) {
-        ctx.reply('No skills directory found.');
+        await ctx.reply('No skills directory found.');
         return;
       }
       const lines: string[] = ['<b>Installed skills:</b>'];
@@ -135,26 +135,26 @@ export class TelegramChannel implements Channel {
         const content = fs.readFileSync(skillMd, 'utf-8');
         const descMatch = content.match(/^description:\s*(.+)$/m);
         const desc = descMatch ? descMatch[1].trim() : '';
-        lines.push(
-          `• <code>/${dir}</code>${desc ? ` — ${desc.slice(0, 80)}` : ''}`,
-        );
+        const safeName = escapeXml(dir);
+        const safeDesc = desc ? escapeXml(desc.slice(0, 80)) : '';
+        lines.push(`• <code>/${safeName}</code>${safeDesc ? ` — ${safeDesc}` : ''}`);
       }
       const text = lines.length > 1 ? lines.join('\n') : 'No skills installed.';
       // Chunk if needed — Telegram 4096 char limit
       const MAX = 4096;
       if (text.length <= MAX) {
-        ctx.reply(text, { parse_mode: 'HTML' });
+        await ctx.reply(text, { parse_mode: 'HTML' });
       } else {
         let chunk = '';
         for (const line of lines) {
           if (chunk.length + line.length + 1 > MAX) {
-            ctx.reply(chunk, { parse_mode: 'HTML' });
+            await ctx.reply(chunk, { parse_mode: 'HTML' });
             chunk = line;
           } else {
             chunk = chunk ? `${chunk}\n${line}` : line;
           }
         }
-        if (chunk) ctx.reply(chunk, { parse_mode: 'HTML' });
+        if (chunk) await ctx.reply(chunk, { parse_mode: 'HTML' });
       }
     });
 
