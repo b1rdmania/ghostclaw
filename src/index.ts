@@ -61,6 +61,7 @@ let registeredGroups: Record<string, RegisteredGroup> = {};
 let lastAgentTimestamp: Record<string, string> = {};
 let messageLoopRunning = false;
 const startTime = Date.now();
+const currentTasks: Record<string, string> = {};
 
 let whatsapp: WhatsAppChannel;
 const channels: Channel[] = [];
@@ -206,6 +207,9 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
   let hadError = false;
   let outputSentToUser = false;
 
+  currentTasks[chatJid] = missedMessages[
+    missedMessages.length - 1
+  ].content.slice(0, 120);
   const output = await runAgent(group, prompt, chatJid, async (result) => {
     lastOutputAt = Date.now();
     if (!typingActive) {
@@ -240,6 +244,7 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
   clearInterval(typingInterval);
   await channel.setTyping?.(chatJid, false);
   if (idleTimer) clearTimeout(idleTimer);
+  delete currentTasks[chatJid];
 
   if (output === 'error' || hadError) {
     if (outputSentToUser) {
@@ -715,9 +720,11 @@ async function main(): Promise<void> {
   queue.setOnMessageQueuedFn((groupJid) => {
     const channel = findChannel(channels, groupJid);
     if (!channel) return;
-    channel
-      .sendMessage(groupJid, 'Got it, finishing a task first...')
-      .catch(() => {});
+    const current = currentTasks[groupJid];
+    const msg = current
+      ? `Got it, queued — currently: "${current.length > 100 ? current.slice(0, 100) + '…' : current}"`
+      : 'Got it, finishing a task first...';
+    channel.sendMessage(groupJid, msg).catch(() => {});
   });
   recoverPendingMessages();
   startMessageLoop().catch((err) => {
