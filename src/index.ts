@@ -32,6 +32,7 @@ import {
   initDatabase,
   setRegisteredGroup,
   deleteSession,
+  pruneCompletedTasks,
   setRouterState,
   setSession,
   storeChatMetadata,
@@ -569,6 +570,9 @@ async function main(): Promise<void> {
 
   initDatabase();
   logger.info('Database initialized');
+  const pruned = pruneCompletedTasks(7);
+  if (pruned > 0)
+    logger.info({ pruned }, 'Pruned completed tasks older than 7 days');
   loadState();
 
   const shutdown = async (signal: string) => {
@@ -609,6 +613,13 @@ async function main(): Promise<void> {
       if (group) {
         delete sessions[group.folder];
         deleteSession(group.folder);
+        const sessionDir = path.join(
+          DATA_DIR,
+          'sessions',
+          group.folder,
+          '.claude',
+        );
+        fs.rmSync(sessionDir, { recursive: true, force: true });
       }
       return queue.killAgent(chatJid);
     },
