@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.6.4 (2026-03-20) — Timeout fix + queue visibility
+
+### Fixes
+- **Absolute timeout regression fixed** — v0.6.1 introduced a `Math.min(CONTAINER_TIMEOUT, AGENT_ABSOLUTE_TIMEOUT)` comparison that silently capped the ceiling at 30 minutes (CONTAINER_TIMEOUT) instead of the intended 45. Removed the comparison entirely — `AGENT_ABSOLUTE_TIMEOUT` now stands alone.
+
+### New
+- **Queue ack shows what's currently running** — when a message is queued behind an active agent, the bot now replies with `Got it, queued — currently: "..."` showing the first 100 characters of the task in progress, instead of the generic "finishing a task first" message.
+
 ## v0.6.3 (2026-03-19) — Session + status fixes
 
 ### Fixes
