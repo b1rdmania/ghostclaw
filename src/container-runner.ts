@@ -610,9 +610,9 @@ export function writeTasksSnapshot(
   const groupIpcDir = resolveGroupIpcPath(groupFolder);
   fs.mkdirSync(groupIpcDir, { recursive: true });
 
-  const filteredTasks = isMain
-    ? tasks
-    : tasks.filter((t) => t.groupFolder === groupFolder);
+  const filteredTasks = (
+    isMain ? tasks : tasks.filter((t) => t.groupFolder === groupFolder)
+  ).filter((t) => t.status !== 'completed');
 
   const tasksFile = path.join(groupIpcDir, 'current_tasks.json');
   fs.writeFileSync(tasksFile, JSON.stringify(filteredTasks, null, 2));

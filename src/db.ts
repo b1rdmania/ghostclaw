@@ -517,18 +517,6 @@ export function deleteSession(groupFolder: string): void {
   db.prepare('DELETE FROM sessions WHERE group_folder = ?').run(groupFolder);
 }
 
-export function pruneCompletedTasks(daysOld: number): number {
-  const cutoff = new Date(
-    Date.now() - daysOld * 24 * 60 * 60 * 1000,
-  ).toISOString();
-  const result = db
-    .prepare(
-      `DELETE FROM scheduled_tasks WHERE status = 'completed' AND last_run < ?`,
-    )
-    .run(cutoff);
-  return result.changes;
-}
-
 export function getAllSessions(): Record<string, string> {
   const rows = db
     .prepare('SELECT group_folder, session_id FROM sessions')

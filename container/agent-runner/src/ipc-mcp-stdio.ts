@@ -151,37 +151,75 @@ SCHEDULE VALUE FORMAT (all times are LOCAL timezone):
 
 server.tool(
   'list_tasks',
-  "List all scheduled tasks. From main: shows all tasks. From other groups: shows only that group's tasks.",
+  "List active and paused scheduled tasks. Completed tasks are not shown here — use list_completed_tasks to see history.",
   {},
   async () => {
     const tasksFile = path.join(IPC_DIR, 'current_tasks.json');
 
     try {
       if (!fs.existsSync(tasksFile)) {
-        return { content: [{ type: 'text' as const, text: 'No scheduled tasks found.' }] };
+        return { content: [{ type: 'text' as const, text: 'No active tasks.' }] };
       }
 
-      const allTasks = JSON.parse(fs.readFileSync(tasksFile, 'utf-8'));
-
-      const tasks = isMain
-        ? allTasks
-        : allTasks.filter((t: { groupFolder: string }) => t.groupFolder === groupFolder);
+      const tasks: Array<{
+        id: string;
+        groupFolder: string;
+        prompt: string;
+        schedule_type: string;
+        schedule_value: string;
+        status: string;
+        next_run: string | null;
+      }> = JSON.parse(fs.readFileSync(tasksFile, 'utf-8'));
 
       if (tasks.length === 0) {
-        return { content: [{ type: 'text' as const, text: 'No scheduled tasks found.' }] };
+        return { content: [{ type: 'text' as const, text: 'No active tasks.' }] };
       }
 
-      const formatted = tasks
-        .map(
-          (t: { id: string; prompt: string; schedule_type: string; schedule_value: string; status: string; next_run: string }) =>
-            `- [${t.id}] ${t.prompt.slice(0, 50)}... (${t.schedule_type}: ${t.schedule_value}) - ${t.status}, next: ${t.next_run || 'N/A'}`,
-        )
-        .join('\n');
+      const now = Date.now();
+      const soon = now + 15 * 60 * 1000;
 
-      return { content: [{ type: 'text' as const, text: `Scheduled tasks:\n${formatted}` }] };
+      const dueSoon = tasks.filter(t => t.status === 'active' && t.next_run && new Date(t.next_run).getTime() <= soon);
+      const scheduled = tasks.filter(t => t.status === 'active' && t.next_run && new Date(t.next_run).getTime() > soon);
+      const paused = tasks.filter(t => t.status === 'paused');
+
+      const fmt = (t: typeof tasks[0]) => {
+        const when = t.next_run ? new Date(t.next_run).toISOString().slice(0, 16).replace('T', ' ') : 'N/A';
+        return `  [${t.id}] ${t.prompt.slice(0, 80).replace(/\n/g, ' ')} (${t.schedule_type}) — next: ${when}`;
+      };
+
+      const sections: string[] = [];
+      if (dueSoon.length > 0) sections.push(`## Due soon\n${dueSoon.map(fmt).join('\n')}`);
+      if (scheduled.length > 0) sections.push(`## Scheduled\n${scheduled.map(fmt).join('\n')}`);
+      if (paused.length > 0) sections.push(`## Paused\n${paused.map(fmt).join('\n')}`);
+
+      return { content: [{ type: 'text' as const, text: sections.join('\n\n') }] };
     } catch (err) {
       return {
         content: [{ type: 'text' as const, text: `Error reading tasks: ${err instanceof Error ? err.message : String(err)}` }],
+      };
+    }
+  },
+);
+
+server.tool(
+  'list_completed_tasks',
+  'Show the history of completed tasks from the group log file. Useful for checking what has already been done.',
+  {},
+  async () => {
+    const groupDir = process.env.GHOSTCLAW_GROUP_DIR || '';
+    const archiveFile = path.join(groupDir, 'completed-tasks.md');
+    try {
+      if (!groupDir || !fs.existsSync(archiveFile)) {
+        return { content: [{ type: 'text' as const, text: 'No completed task history yet.' }] };
+      }
+      const content = fs.readFileSync(archiveFile, 'utf-8').trim();
+      // Return last 100 lines to keep context reasonable
+      const lines = content.split('\n');
+      const excerpt = lines.slice(-100).join('\n');
+      return { content: [{ type: 'text' as const, text: excerpt }] };
+    } catch (err) {
+      return {
+        content: [{ type: 'text' as const, text: `Error reading history: ${err instanceof Error ? err.message : String(err)}` }],
       };
     }
   },

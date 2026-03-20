@@ -1,6 +1,7 @@
 import { ChildProcess, execSync } from 'child_process';
 import { CronExpressionParser } from 'cron-parser';
 import fs from 'fs';
+import path from 'path';
 
 import { parseRalphPrefix } from './ralph.js';
 
@@ -16,6 +17,7 @@ import {
   writeTasksSnapshot,
 } from './container-runner.js';
 import {
+  deleteTask,
   getAllTasks,
   getDueTasks,
   getTaskById,
@@ -317,6 +319,37 @@ async function runTask(
       ? result.slice(0, 200)
       : 'Completed';
   updateTaskAfterRun(task.id, nextRun, resultSummary);
+
+  // Once tasks (including all Ralph iterations) have no next run — archive to
+  // completed-tasks.md in the group dir and remove from DB so they don't
+  // accumulate in the active tasks snapshot.
+  if (nextRun === null) {
+    try {
+      const groupDir = resolveGroupFolderPath(task.group_folder);
+      const archiveFile = path.join(groupDir, 'completed-tasks.md');
+      const date = new Date().toISOString().slice(0, 10);
+      const time = new Date().toISOString().slice(11, 16);
+      const durationSec = Math.round(durationMs / 1000);
+      const promptPreview = task.prompt.slice(0, 100).replace(/\n/g, ' ');
+      const statusLine = error
+        ? `Error: ${error.slice(0, 100)}`
+        : resultSummary.slice(0, 100);
+      const line = `- ${time} | ${task.schedule_type} | ${promptPreview} (${durationSec}s) — ${statusLine}\n`;
+
+      let existing = '';
+      if (fs.existsSync(archiveFile)) {
+        existing = fs.readFileSync(archiveFile, 'utf-8');
+      }
+      const header = `\n## ${date}\n`;
+      const content = existing.includes(`## ${date}`)
+        ? existing + line
+        : existing + header + line;
+      fs.writeFileSync(archiveFile, content);
+    } catch (err) {
+      logger.warn({ taskId: task.id, err }, 'Failed to archive completed task');
+    }
+    deleteTask(task.id);
+  }
 
   // Check if this was a Ralph iteration and chain the next one
   const ralphInfo = parseRalphPrefix(task.prompt);
