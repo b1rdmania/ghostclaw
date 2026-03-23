@@ -168,6 +168,20 @@ For a full safe update with backup and rollback tag:
 /update-ghostclaw
 ```
 
+**Don't have `/update` yet?** If you're on a version before v0.6.0, update manually:
+
+```bash
+cd ghostclaw
+git pull origin main
+npm install
+npm run build
+# Then restart your service:
+# macOS: launchctl kickstart -k gui/$(id -u)/com.ghostclaw
+# Linux: systemctl --user restart ghostclaw
+```
+
+After this, `/update` will be available in Telegram for future updates.
+
 ## FAQ
 
 **What does it cost?**
