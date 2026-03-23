@@ -100,6 +100,7 @@ Layer on more capabilities from Claude Code. One command each, security-scanned 
 | `/add-slack` | Slack as an additional channel |
 | `/add-telegram-swarm` | Multi-bot agent teams in Telegram |
 | `/add-update-check` | Weekly check for GhostClaw updates |
+| `/pr-babysitter` | Automated PR monitoring — watches CI, review comments, stale PRs; auto-fixes high-confidence issues |
 | `/debug` | Troubleshooting guide |
 | `/update-ghostclaw` | Safe update: backup, pull, migrate, rebuild, restart |
 
@@ -120,6 +121,8 @@ All config lives in `.env`. The setup wizard creates this.
 | `ELEVENLABS_VOICE_ID` | No | Voice ID for TTS (elevenlabs.io/voice-library) |
 | `TELEGRAM_ONLY` | No | Set `true` to skip WhatsApp |
 | `GMAIL_MCP_ENABLED` | No | Set `1` for email integration |
+| `AGENT_IDLE_TIMEOUT` | No | Minutes before a silent agent is killed (default: 10) |
+| `AGENT_ABSOLUTE_TIMEOUT` | No | Hard ceiling in minutes regardless of activity (default: 45) |
 
 *One of `CLAUDE_CODE_OAUTH_TOKEN` or `ANTHROPIC_API_KEY` is required.
 
@@ -146,7 +149,10 @@ These work in any registered Telegram chat:
 
 | Command | What it does |
 |---------|-------------|
-| `/reset` | Force-kills a stalled agent. Next message starts fresh. |
+| `/reset` | Force-kills a stalled agent and wipes the session. Next message starts with a blank slate. |
+| `/status` | Shows active agents, queue depth per group, and uptime. |
+| `/skills` | Lists all installed skills with descriptions. |
+| `/update` | Pulls latest code, rebuilds, and restarts — no SSH needed. |
 | `/ping` | Check if the bot is online. |
 | `/chatid` | Show the chat's registration ID. |
 
@@ -154,11 +160,13 @@ These work in any registered Telegram chat:
 
 ## Updating
 
+Send `/update` in Telegram to pull and rebuild automatically. No SSH required.
+
+For a full safe update with backup and rollback tag:
+
 ```
 /update-ghostclaw
 ```
-
-Backs up current state, pulls latest, runs migrations, rebuilds, restarts. Gives you a rollback tag if anything goes wrong.
 
 ## FAQ
 
