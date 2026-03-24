@@ -273,6 +273,11 @@ export async function runContainerAgent(
       // MCP servers need the real HOME to find their credentials.
       CLAUDE_CONFIG_DIR: groupSessionsDir,
       TZ: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      // ANTHROPIC_MODEL is read by the SDK before the options.model parameter.
+      // This ensures model selection works even during SDK startup checks.
+      ...(process.env.GHOSTCLAW_MODEL
+        ? { ANTHROPIC_MODEL: process.env.GHOSTCLAW_MODEL }
+        : {}),
     };
 
     const agentProcess = spawn(process.execPath, [agentEntrypoint], {

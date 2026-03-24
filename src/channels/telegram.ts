@@ -105,9 +105,21 @@ export class TelegramChannel implements Channel {
     });
 
     const AVAILABLE_MODELS = [
-      { alias: 'sonnet', desc: 'Fast + capable (default)' },
-      { alias: 'opus', desc: 'Most capable, slower' },
-      { alias: 'haiku', desc: 'Fastest, cheapest' },
+      {
+        alias: 'sonnet',
+        id: 'claude-sonnet-4-5-20250929',
+        desc: 'Fast + capable (default)',
+      },
+      {
+        alias: 'opus',
+        id: 'claude-opus-4-5-20251101',
+        desc: 'Most capable, slower',
+      },
+      {
+        alias: 'haiku',
+        id: 'claude-haiku-4-5-20251001',
+        desc: 'Fastest, cheapest',
+      },
     ];
 
     this.bot.command('model', async (ctx) => {
@@ -119,15 +131,20 @@ export class TelegramChannel implements Channel {
       }
 
       const arg = ctx.match?.trim().toLowerCase();
-      const current = process.env.GHOSTCLAW_MODEL || 'sonnet';
+      const currentId = process.env.GHOSTCLAW_MODEL || AVAILABLE_MODELS[0].id;
+      const currentModel = AVAILABLE_MODELS.find(
+        (m) => m.id === currentId || m.alias === currentId,
+      );
+      const currentLabel = currentModel?.alias || currentId;
 
       if (!arg) {
         const lines = AVAILABLE_MODELS.map((m) => {
-          const active = m.alias === current ? ' ← current' : '';
+          const active =
+            m.id === currentId || m.alias === currentId ? ' ← current' : '';
           return `• <code>/model ${m.alias}</code> — ${m.desc}${active}`;
         });
         await ctx.reply(
-          `<b>Model: ${escapeXml(current)}</b>\n\n${lines.join('\n')}`,
+          `<b>Model: ${escapeXml(currentLabel)}</b>\n\n${lines.join('\n')}`,
           { parse_mode: 'HTML' },
         );
         return;
@@ -141,7 +158,7 @@ export class TelegramChannel implements Channel {
         return;
       }
 
-      process.env.GHOSTCLAW_MODEL = match.alias;
+      process.env.GHOSTCLAW_MODEL = match.id;
 
       // Persist to .env so it survives restarts
       const envPath = path.join(process.cwd(), '.env');
@@ -152,11 +169,10 @@ export class TelegramChannel implements Channel {
         if (envContent.match(/^GHOSTCLAW_MODEL=.*/m)) {
           envContent = envContent.replace(
             /^GHOSTCLAW_MODEL=.*/m,
-            `GHOSTCLAW_MODEL=${match.alias}`,
+            `GHOSTCLAW_MODEL=${match.id}`,
           );
         } else {
-          envContent =
-            envContent.trimEnd() + `\nGHOSTCLAW_MODEL=${match.alias}\n`;
+          envContent = envContent.trimEnd() + `\nGHOSTCLAW_MODEL=${match.id}\n`;
         }
         fs.writeFileSync(envPath, envContent);
       } catch (err) {
