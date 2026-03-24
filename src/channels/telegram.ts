@@ -179,8 +179,11 @@ export class TelegramChannel implements Channel {
         logger.warn({ err }, 'Failed to persist model to .env');
       }
 
+      // Reset the session so the new model takes effect immediately
+      this.opts.onReset?.(chatJid);
+
       await ctx.reply(
-        `Model switched to <b>${escapeXml(match.alias)}</b>. Next message will use it.`,
+        `Model switched to <b>${escapeXml(match.alias)}</b>. Session reset — next message uses the new model.`,
         { parse_mode: 'HTML' },
       );
     });
