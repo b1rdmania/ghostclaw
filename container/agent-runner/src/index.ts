@@ -494,7 +494,7 @@ async function runQuery(
     prompt: stream,
     options: {
       cwd,
-      model: process.env.GHOSTCLAW_MODEL || 'claude-sonnet-4-6-20250514',
+      model: process.env.GHOSTCLAW_MODEL || 'claude-sonnet-4-6',
       additionalDirectories: extraDirs.length > 0 ? extraDirs : undefined,
       resume: sessionId,
       resumeSessionAt: resumeAt,
