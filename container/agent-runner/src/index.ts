@@ -332,8 +332,11 @@ function drainIpcInput(): string[] {
  * Wait for a new IPC message or _close sentinel.
  * Returns the messages as a single string, or null if _close.
  */
+const IPC_WAIT_TIMEOUT_MS = 30_000; // Exit after 30s with no follow-up message
+
 function waitForIpcMessage(): Promise<string | null> {
   return new Promise((resolve) => {
+    const deadline = Date.now() + IPC_WAIT_TIMEOUT_MS;
     const poll = () => {
       if (shouldClose()) {
         resolve(null);
@@ -342,6 +345,11 @@ function waitForIpcMessage(): Promise<string | null> {
       const messages = drainIpcInput();
       if (messages.length > 0) {
         resolve(messages.join('\n'));
+        return;
+      }
+      if (Date.now() >= deadline) {
+        log(`No IPC message after ${IPC_WAIT_TIMEOUT_MS}ms, exiting`);
+        resolve(null);
         return;
       }
       setTimeout(poll, IPC_POLL_MS);
