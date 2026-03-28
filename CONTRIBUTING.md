@@ -22,4 +22,4 @@ Your skill should contain **instructions** Claude follows — not pre-built code
 
 ## Community
 
-Join the [OpenClawOS Telegram group](https://t.me/+8qJbqxzBQAZkYTNk) for discussion.
+Join the [GhostClaw community on Telegram](https://t.me/+8qJbqxzBQAZkYTNk) for discussion.

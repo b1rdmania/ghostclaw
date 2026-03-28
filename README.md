@@ -172,7 +172,7 @@ Untested but should work on any Linux ARM/x64 box with Node.js 20+.
 
 ## Community
 
-Join the [OpenClawOS Telegram group](https://t.me/+8qJbqxzBQAZkYTNk) to share problems, suggestions, or see what others are building.
+Join the [GhostClaw community on Telegram](https://t.me/+8qJbqxzBQAZkYTNk) to share problems, suggestions, or see what others are building.
 
 ## Credits
 
