@@ -12,6 +12,7 @@ const envConfig = readEnvFile([
   'TELEGRAM_ONLY',
   'AGENT_IDLE_TIMEOUT',
   'AGENT_ABSOLUTE_TIMEOUT',
+  'RALPH_MAX_ITERATIONS',
 ]);
 
 export const ASSISTANT_NAME =
@@ -55,6 +56,11 @@ export const AGENT_ABSOLUTE_TIMEOUT = parseInt(
     '2700000',
   10,
 ); // 45 min default
+export const RALPH_MAX_ITERATIONS = parseInt(
+  process.env.RALPH_MAX_ITERATIONS || envConfig.RALPH_MAX_ITERATIONS || '10',
+  10,
+); // 10 steps default — override in .env or per-run
+
 export const MAX_CONCURRENT_CONTAINERS = Math.max(
   1,
   parseInt(process.env.MAX_CONCURRENT_CONTAINERS || '5', 10) || 5,

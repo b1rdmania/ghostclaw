@@ -127,7 +127,7 @@ describe('startRalphRun', () => {
       k.endsWith('config.json'),
     )!;
     const config = JSON.parse(deps.files[configKey]);
-    expect(config.maxIterations).toBe(50);
+    expect(config.maxIterations).toBe(10);
     expect(config.maxFailuresPerTask).toBe(3);
   });
 });

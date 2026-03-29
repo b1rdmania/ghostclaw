@@ -39,7 +39,13 @@ Rules for good task files:
 sqlite3 store/messages.db "SELECT jid FROM registered_groups WHERE folder = 'main' LIMIT 1;"
 ```
 
-### 3. Start the run
+### 3. Set iterations
+
+Count the unchecked tasks in the task file. Set `maxIterations` to that count + 2 (buffer for retries). If unsure, ask the user: "You have N tasks — run all of them, or set a limit?"
+
+Default is 10 if not specified. Can also be set via `RALPH_MAX_ITERATIONS` in `.env`.
+
+### 4. Start the run
 
 Write an IPC file:
 
@@ -47,6 +53,7 @@ Write an IPC file:
 CHAT_JID="<main chat JID>"
 TASK_FILE="/absolute/path/to/tasks.md"
 WORK_DIR="/absolute/path/to/project"
+MAX_ITER=<task count + 2>
 
 cat > data/ipc/main/tasks/ralph_start_$(date +%s).json << EOF
 {
@@ -54,7 +61,7 @@ cat > data/ipc/main/tasks/ralph_start_$(date +%s).json << EOF
   "taskFile": "$TASK_FILE",
   "workDir": "$WORK_DIR",
   "targetJid": "$CHAT_JID",
-  "maxIterations": 50,
+  "maxIterations": $MAX_ITER,
   "notifyProgress": true
 }
 EOF
@@ -65,7 +72,7 @@ The bot will message you: "Ralph run started: ralph-{id}"
 ### 4. Monitor progress
 
 Between each iteration, the bot messages you:
-> Ralph [3/50]: Completed "Add login endpoint with JWT"
+> Ralph [3/7]: Completed "Add login endpoint with JWT"
 
 Check detailed progress:
 ```bash
@@ -111,7 +118,7 @@ The task file will have all checkboxes marked `[x]`.
 ## Safety
 
 - Each iteration runs in **isolated context** (fresh agent, no carried-over confusion)
-- Max 50 iterations by default (configurable via `maxIterations`)
+- Max 10 iterations by default (configurable via `maxIterations` or `RALPH_MAX_ITERATIONS` in `.env`)
 - Tasks that fail 3 times are skipped (configurable via `maxFailuresPerTask` in config.json)
 - Agent is instructed to **commit after each task** — easy to roll back
 - You can stop the loop at any time via the stop IPC command

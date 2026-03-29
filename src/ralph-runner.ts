@@ -6,7 +6,7 @@
 
 import path from 'path';
 
-import { DATA_DIR } from './config.js';
+import { DATA_DIR, RALPH_MAX_ITERATIONS } from './config.js';
 import { logger } from './logger.js';
 import {
   RalphConfig,
@@ -165,7 +165,7 @@ export async function startRalphRun(
     workDir: params.workDir,
     targetJid: params.targetJid,
     groupFolder: params.groupFolder,
-    maxIterations: params.maxIterations ?? 50,
+    maxIterations: params.maxIterations ?? RALPH_MAX_ITERATIONS,
     maxFailuresPerTask: params.maxFailuresPerTask ?? 3,
     currentIteration: 0,
     consecutiveFailures: {},
