@@ -22,6 +22,14 @@ export interface FastPathResult {
   answer?: string;
 }
 
+// Patterns that should always go to full agent (memory writes needed)
+const MEMORY_TRIGGERS =
+  /\b(remember|log this|save this|don't forget|note this|bank this)\b/i;
+
+export function shouldBypassFastPath(message: string): boolean {
+  return MEMORY_TRIGGERS.test(message);
+}
+
 const FAST_PATH_HANDOFF = '[HANDOFF]';
 
 const ROUTING_SUFFIX = `

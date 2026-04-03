@@ -1,5 +1,23 @@
 # Changelog
 
+## v0.7.1 (2026-04-03) — Stability + hard reset + memory reliability
+
+### New
+- **`/hardreset` command** — nuclear option via Telegram. Kills all agents, clears scheduled tasks, wipes session data, kills orphaned processes, advances message cursor, then restarts. Use when the system is stuck and `/reset` isn't enough.
+- **Post-agent memory write** — after every successful agent run that produces output, an `[auto]` entry is appended to `memory/log.md`. Memory updates no longer depend on the agent remembering to write them.
+- **Memory trigger bypass** — messages containing "remember this", "log this", "save this", "bank this", "note this", or "don't forget" always go to the full agent (never fast path) to ensure memory writes happen.
+- **Ralph decomposition rule** — Ralph must now estimate scope and break tasks >20min into bounded subtasks before executing.
+- **Ralph narration rule** — Ralph must send progress updates every 2-3 minutes during long operations to keep the idle timer alive.
+
+### Fixes
+- **PID lock hardened** — exclusive lock file held open for process lifetime with delayed verification. Prevents the duplicate-instance problem where 6 GhostClaw processes would spawn during rapid crash-restart cycles, each sending identical responses.
+- **Session auto-prune** — deletes session data older than 1 hour on startup and every hour while running. Keeps `settings.json`. Prevents the 406MB session bloat that degraded performance over multi-day uptime.
+- **Timeouts reverted to safe defaults** — `AGENT_IDLE_TIMEOUT` back to 10min, `AGENT_ABSOLUTE_TIMEOUT` back to 45min. The March 30-31 incident showed that long timeouts + Ralph loops = hours of wasted compute per failed task.
+- **`@anthropic-ai/sdk` added** as dependency (for future fast-path routing when API key auth is available).
+
+### Mothballed
+- **Fast-path routing** (`src/fast-path.ts`) — built but disabled. OAuth tokens don't work with the raw Anthropic API ("OAuth authentication is currently not supported"). Code remains for when an `ANTHROPIC_API_KEY` is available. The routing logic, memory triggers, and handoff mechanism are all wired up and tested.
+
 ## v0.7.0 (2026-03-29) — Message history overflow fix
 
 ### Fixes

@@ -20,6 +20,7 @@ export interface TelegramChannelOpts {
   onChatMetadata: OnChatMetadata;
   registeredGroups: () => Record<string, RegisteredGroup>;
   onReset?: (chatJid: string) => boolean;
+  onHardReset?: (chatJid: string) => Promise<string>;
   onGetStatus?: () => string;
 }
 
@@ -70,6 +71,26 @@ export class TelegramChannel implements Channel {
       ctx.reply(
         'Reset. Agent killed and queue cleared — send me something to start fresh.',
       );
+    });
+
+    // Hard reset: kill all agents, clear tasks, wipe sessions, advance cursor, restart
+    this.bot.command('hardreset', async (ctx) => {
+      const chatJid = `tg:${ctx.chat.id}`;
+      const group = this.opts.registeredGroups()[chatJid];
+      if (!group) {
+        ctx.reply('Not a registered chat.');
+        return;
+      }
+      await ctx.reply('Hard reset in progress...');
+      try {
+        const report = await this.opts.onHardReset?.(chatJid);
+        await ctx.reply(report || 'Hard reset complete.');
+        await ctx.reply('Restarting — back in a moment.');
+        setTimeout(() => process.exit(0), 500);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        await ctx.reply(`Hard reset failed: ${msg.slice(0, 500)}`);
+      }
     });
 
     // Command to pull latest code and restart

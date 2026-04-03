@@ -101,7 +101,9 @@ ${config.workDir}
 1. Work ONLY on this task. Do not start other tasks.
 2. Commit your work with a clear message when done.
 3. Run tests to verify your changes.
-4. If you cannot complete this task, explain why clearly in your response.${progress}`;
+4. If you cannot complete this task, explain why clearly in your response.
+5. DECOMPOSE FIRST: Before executing, estimate scope. If this task could take more than 20 minutes, break it into subtasks with clear bounded outputs (e.g. "research X and write findings to Y file" not "research everything about X"). Write the subtasks as a checklist, then work through them one at a time.
+6. NARRATE PROGRESS: During long operations, send a brief progress update via send_message every 2-3 minutes. Even "Checking source 3 of 6..." is enough. Never go silent for more than 3 minutes — silence triggers the idle timeout and kills your process.${progress}`;
 }
 
 /**

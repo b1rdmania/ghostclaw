@@ -8,6 +8,7 @@ const { version: APP_VERSION } = require('../package.json');
 import {
   ASSISTANT_NAME,
   DATA_DIR,
+  GROUPS_DIR,
   IDLE_TIMEOUT,
   MAIN_GROUP_FOLDER,
   MAX_MESSAGES_PER_PROMPT,
@@ -20,7 +21,9 @@ import { waitForMessage } from './message-signal.js';
 import { TelegramChannel } from './channels/telegram.js';
 import { WhatsAppChannel } from './channels/whatsapp.js';
 import { initErrorAlerts, sendErrorAlert } from './error-alerts.js';
-import { tryFastPath } from './fast-path.js';
+// Fast path mothballed — OAuth token doesn't work with raw Anthropic API.
+// Revisit when ANTHROPIC_API_KEY is available or Agent SDK supports lightweight mode.
+// import { tryFastPath, shouldBypassFastPath } from './fast-path.js';
 import {
   ContainerOutput,
   runContainerAgent,
@@ -178,29 +181,6 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
     m.content.startsWith('[Voice:'),
   );
 
-  // Fast path: try a single API call for simple messages (no voice, single message)
-  if (!hasVoiceMessage && missedMessages.length === 1) {
-    const rawContent = missedMessages[0].content.trim();
-    // Skip fast path for slash commands — they always need the full agent
-    if (!rawContent.startsWith('/')) {
-      try {
-        const result = await tryFastPath(rawContent, group.folder);
-        if (result.handled && result.answer) {
-          const ch = findChannel(channels, chatJid);
-          if (ch) {
-            await ch.sendMessage(chatJid, result.answer);
-          }
-          lastAgentTimestamp[chatJid] =
-            missedMessages[missedMessages.length - 1].timestamp;
-          saveState();
-          return true;
-        }
-      } catch (err) {
-        logger.warn({ err }, 'Fast path error, falling through to full agent');
-      }
-    }
-  }
-
   const previousCursor = lastAgentTimestamp[chatJid] || '';
   lastAgentTimestamp[chatJid] =
     missedMessages[missedMessages.length - 1].timestamp;
@@ -313,6 +293,38 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
   }
 
   consecutiveFailures[chatJid] = 0;
+
+  // Post-agent memory write: append a summary to log.md after every successful run
+  try {
+    const logFile = path.join(GROUPS_DIR, group.folder, 'memory', 'log.md');
+    if (fs.existsSync(logFile)) {
+      const today = new Date().toISOString().slice(0, 10);
+      const logContent = fs.readFileSync(logFile, 'utf-8');
+      const taskSummary = currentTasks[chatJid] || prompt.slice(0, 120);
+      // Only append if the agent actually sent output (not a no-op)
+      if (outputSentToUser) {
+        const entry = `- [auto] Handled: ${taskSummary.replace(/\n/g, ' ')}`;
+        if (logContent.includes(`## ${today}`)) {
+          // Append under today's header
+          const updated = logContent.replace(
+            `## ${today}`,
+            `## ${today}\n${entry}`,
+          );
+          fs.writeFileSync(logFile, updated);
+        } else {
+          // Add new day header after the separator
+          const updated = logContent.replace(
+            '---\n',
+            `---\n\n## ${today}\n${entry}\n`,
+          );
+          fs.writeFileSync(logFile, updated);
+        }
+      }
+    }
+  } catch {
+    // Non-critical — don't fail the session over a log write
+  }
+
   return true;
 }
 
@@ -715,6 +727,9 @@ async function main(): Promise<void> {
   cleanupOrphanedAgents();
   pruneSessionData();
 
+  // Prune sessions every hour while running
+  setInterval(pruneSessionData, 60 * 60 * 1000);
+
   const errorsLog = path.join(process.cwd(), 'logs', 'errors.log');
   try {
     fs.writeFileSync(errorsLog, '');
@@ -773,6 +788,97 @@ async function main(): Promise<void> {
         fs.rmSync(sessionDir, { recursive: true, force: true });
       }
       return queue.killAgent(chatJid);
+    },
+    onHardReset: async (chatJid: string) => {
+      const report: string[] = [];
+
+      // 1. Kill all active agents
+      const status = queue.getStatus();
+      for (const jid of Object.keys(registeredGroups)) {
+        queue.clearQueue(jid);
+        queue.killAgent(jid);
+      }
+      report.push(
+        `Killed ${status.active} agent(s), cleared ${status.waiting} queued`,
+      );
+
+      // 2. Clear all scheduled/Ralph tasks
+      const { getAllTasks: getTasks } = await import('./db.js');
+      const tasks = getTasks();
+      let taskCount = 0;
+      for (const task of tasks) {
+        const { deleteTask } = await import('./db.js');
+        deleteTask(task.id);
+        taskCount++;
+      }
+      report.push(`Cleared ${taskCount} scheduled task(s)`);
+
+      // 3. Wipe all session data
+      const sessionsDir = path.join(DATA_DIR, 'sessions');
+      if (fs.existsSync(sessionsDir)) {
+        fs.rmSync(sessionsDir, { recursive: true, force: true });
+        fs.mkdirSync(sessionsDir, { recursive: true });
+      }
+      for (const group of Object.values(registeredGroups)) {
+        delete sessions[group.folder];
+        deleteSession(group.folder);
+      }
+      report.push('Wiped all session data');
+
+      // 4. Kill orphaned processes
+      try {
+        const { execSync } = await import('child_process');
+        const procs = execSync("pgrep -f 'agent-runner|claude' || true", {
+          encoding: 'utf-8',
+        }).trim();
+        const pids = procs
+          .split('\n')
+          .map((p) => parseInt(p, 10))
+          .filter((p) => p && p !== process.pid);
+        let killed = 0;
+        for (const pid of pids) {
+          try {
+            process.kill(pid, 'SIGKILL');
+            killed++;
+          } catch {
+            /* already dead */
+          }
+        }
+        if (killed > 0) report.push(`Killed ${killed} orphaned process(es)`);
+      } catch {
+        /* pgrep not available */
+      }
+
+      // 5. Check memory
+      try {
+        const { execSync } = await import('child_process');
+        const memInfo = execSync(
+          "ps -o rss= -p $$ | awk '{print int($1/1024)}' || echo 'unknown'",
+          { encoding: 'utf-8' },
+        ).trim();
+        const totalMem = Math.round(
+          parseInt(
+            execSync('sysctl -n hw.memsize', { encoding: 'utf-8' }).trim(),
+            10,
+          ) /
+            1024 /
+            1024 /
+            1024,
+        );
+        report.push(`System memory: ${totalMem}GB total`);
+      } catch {
+        /* ignore */
+      }
+
+      // 6. Advance cursor to latest for all groups
+      for (const [jid] of Object.entries(registeredGroups)) {
+        const now = new Date().toISOString();
+        lastAgentTimestamp[jid] = now;
+      }
+      saveState();
+      report.push('Advanced message cursor to now');
+
+      return `Hard reset complete:\n${report.map((r) => `• ${r}`).join('\n')}`;
     },
     onGetStatus: () => {
       const status = queue.getStatus();
