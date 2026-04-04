@@ -22,6 +22,7 @@ import { RegisteredGroup } from './types.js';
 // Sentinel markers for robust output parsing (must match agent-runner)
 const OUTPUT_START_MARKER = '---GHOSTCLAW_OUTPUT_START---';
 const OUTPUT_END_MARKER = '---GHOSTCLAW_OUTPUT_END---';
+const HEARTBEAT_MARKER = '---GHOSTCLAW_HEARTBEAT---';
 
 export interface ContainerInput {
   prompt: string;
@@ -320,22 +321,30 @@ export async function runContainerAgent(
       const chunk = data.toString();
       resetIdleTimer();
 
+      // Strip heartbeat lines — they exist only to reset the idle timer and
+      // should not appear in logs, output buffers, or the parse stream.
+      const filtered = chunk
+        .split('\n')
+        .filter((line: string) => line !== HEARTBEAT_MARKER)
+        .join('\n');
+      if (!filtered.trim() && !chunk.includes(OUTPUT_START_MARKER)) return;
+
       if (!stdoutTruncated) {
         const remaining = CONTAINER_MAX_OUTPUT_SIZE - stdout.length;
-        if (chunk.length > remaining) {
-          stdout += chunk.slice(0, remaining);
+        if (filtered.length > remaining) {
+          stdout += filtered.slice(0, remaining);
           stdoutTruncated = true;
           logger.warn(
             { group: group.name, size: stdout.length },
             'Agent stdout truncated due to size limit',
           );
         } else {
-          stdout += chunk;
+          stdout += filtered;
         }
       }
 
       if (onOutput) {
-        parseBuffer += chunk;
+        parseBuffer += filtered;
         let startIdx: number;
         while ((startIdx = parseBuffer.indexOf(OUTPUT_START_MARKER)) !== -1) {
           const endIdx = parseBuffer.indexOf(OUTPUT_END_MARKER, startIdx);
