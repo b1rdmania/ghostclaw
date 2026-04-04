@@ -1,13 +1,13 @@
 ---
 name: x-integration
-description: X (Twitter) integration for NanoClaw. Post tweets, like, reply, retweet, and quote. Use for setup, testing, or troubleshooting X functionality. Triggers on "setup x", "x integration", "twitter", "post tweet", "tweet".
+description: X (Twitter) integration for GhostClaw. Post tweets, like, reply, retweet, and quote. Use for setup, testing, or troubleshooting X functionality. Triggers on "setup x", "x integration", "twitter", "post tweet", "tweet".
 ---
 
 # X (Twitter) Integration
 
 Browser automation for X interactions via WhatsApp.
 
-> **Compatibility:** NanoClaw v1.0.0. Directory structure may change in future versions.
+> **Compatibility:** GhostClaw v1.0.0. Directory structure may change in future versions.
 
 ## Features
 
@@ -23,7 +23,7 @@ Browser automation for X interactions via WhatsApp.
 
 Before using this skill, ensure:
 
-1. **NanoClaw is installed and running** - WhatsApp connected, service active
+1. **GhostClaw is installed and running** - WhatsApp connected, service active
 2. **Dependencies installed**:
    ```bash
    npm ls playwright dotenv-cli || npm install playwright dotenv-cli
@@ -154,7 +154,7 @@ Paths relative to project root:
 
 ### Integration Points
 
-To integrate this skill into NanoClaw, make the following modifications:
+To integrate this skill into GhostClaw, make the following modifications:
 
 ---
 

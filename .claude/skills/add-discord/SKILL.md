@@ -1,6 +1,6 @@
 # Add Discord Channel
 
-This skill adds Discord support to NanoClaw using the skills engine for deterministic code changes, then walks through interactive setup.
+This skill adds Discord support to GhostClaw using the skills engine for deterministic code changes, then walks through interactive setup.
 
 ## Phase 1: Pre-flight
 
@@ -198,7 +198,7 @@ If the bot connects but can't read messages, ensure:
 1. Go to [Discord Developer Portal](https://discord.com/developers/applications)
 2. Select your application > **Bot** tab
 3. Under **Privileged Gateway Intents**, enable **Message Content Intent**
-4. Restart NanoClaw
+4. Restart GhostClaw
 
 ### Getting Channel ID
 
@@ -212,6 +212,6 @@ The Discord bot supports:
 - Text messages in registered channels
 - Attachment descriptions (images, videos, files shown as placeholders)
 - Reply context (shows who the user is replying to)
-- @mention translation (Discord `<@botId>` → NanoClaw trigger format)
+- @mention translation (Discord `<@botId>` → GhostClaw trigger format)
 - Message splitting for responses over 2000 characters
 - Typing indicators while the agent processes

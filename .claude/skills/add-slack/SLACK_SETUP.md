@@ -1,11 +1,11 @@
-# Slack App Setup for NanoClaw
+# Slack App Setup for GhostClaw
 
-Step-by-step guide to creating and configuring a Slack app for use with NanoClaw.
+Step-by-step guide to creating and configuring a Slack app for use with GhostClaw.
 
 ## Prerequisites
 
 - A Slack workspace where you have admin permissions (or permission to install apps)
-- Your NanoClaw instance with the `/add-slack` skill applied
+- Your GhostClaw instance with the `/add-slack` skill applied
 
 ## Step 1: Create the Slack App
 
@@ -22,7 +22,7 @@ Socket Mode lets the bot connect to Slack without needing a public URL. This is 
 
 1. In the sidebar, click **Socket Mode**
 2. Toggle **Enable Socket Mode** to **On**
-3. When prompted for a token name, enter something like `nanoclaw`
+3. When prompted for a token name, enter something like `ghostclaw`
 4. Click **Generate**
 5. **Copy the App-Level Token** — it starts with `xapp-`. Save this somewhere safe; you'll need it later.
 
@@ -67,7 +67,7 @@ These scopes control what the bot is allowed to do.
 3. Review the permissions and click **Allow**
 4. **Copy the Bot User OAuth Token** — it starts with `xoxb-`. Save this somewhere safe.
 
-## Step 6: Configure NanoClaw
+## Step 6: Configure GhostClaw
 
 Add both tokens to your `.env` file:
 
@@ -101,7 +101,7 @@ Repeat for each channel you want the bot in.
 
 ## Step 8: Get Channel IDs for Registration
 
-You need the Slack channel ID to register it with NanoClaw.
+You need the Slack channel ID to register it with GhostClaw.
 
 **Option A — From the URL:**
 Open the channel in Slack on the web. The URL looks like:
@@ -119,7 +119,7 @@ curl -s -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
   "https://slack.com/api/conversations.list" | jq '.channels[] | {id, name}'
 ```
 
-The NanoClaw JID format is `slack:` followed by the channel ID, e.g., `slack:C0123456789`.
+The GhostClaw JID format is `slack:` followed by the channel ID, e.g., `slack:C0123456789`.
 
 ## Token Reference
 

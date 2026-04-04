@@ -11,7 +11,7 @@ import { openBrowser, isHeadless } from './platform.js';
 import { emitStatus } from './status.js';
 
 const QR_AUTH_TEMPLATE = `<!DOCTYPE html>
-<html><head><title>NanoClaw - WhatsApp Auth</title>
+<html><head><title>GhostClaw - WhatsApp Auth</title>
 <meta http-equiv="refresh" content="3">
 <style>
   body { font-family: -apple-system, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; margin: 0; background: #f5f5f5; }
@@ -46,7 +46,7 @@ const QR_AUTH_TEMPLATE = `<!DOCTYPE html>
 </script></body></html>`;
 
 const SUCCESS_HTML = `<!DOCTYPE html>
-<html><head><title>NanoClaw - Connected!</title>
+<html><head><title>GhostClaw - Connected!</title>
 <style>
   body { font-family: -apple-system, sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; background: #f5f5f5; }
   .card { background: white; border-radius: 16px; padding: 40px; box-shadow: 0 4px 24px rgba(0,0,0,0.1); text-align: center; max-width: 400px; }

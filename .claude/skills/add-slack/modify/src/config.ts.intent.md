@@ -4,7 +4,7 @@
 Added SLACK_ONLY configuration export for Slack channel support.
 
 ## Key sections
-- **readEnvFile call**: Must include `SLACK_ONLY` in the keys array. NanoClaw does NOT load `.env` into `process.env` — all `.env` values must be explicitly requested via `readEnvFile()`.
+- **readEnvFile call**: Must include `SLACK_ONLY` in the keys array. GhostClaw does NOT load `.env` into `process.env` — all `.env` values must be explicitly requested via `readEnvFile()`.
 - **SLACK_ONLY**: Boolean flag from `process.env` or `envConfig`, when `true` disables WhatsApp channel creation
 - **Note**: SLACK_BOT_TOKEN and SLACK_APP_TOKEN are NOT read here. They are read directly by SlackChannel via `readEnvFile()` in `slack.ts` to keep secrets off the config module entirely (same pattern as ANTHROPIC_API_KEY in container-runner.ts).
 

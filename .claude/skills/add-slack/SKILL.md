@@ -5,7 +5,7 @@ description: Add Slack as a channel. Can replace WhatsApp entirely or run alongs
 
 # Add Slack Channel
 
-This skill adds Slack support to NanoClaw using the skills engine for deterministic code changes, then walks through interactive setup.
+This skill adds Slack support to GhostClaw using the skills engine for deterministic code changes, then walks through interactive setup.
 
 ## Phase 1: Pre-flight
 
@@ -120,7 +120,7 @@ Tell the user:
 > 2. In that channel, the channel ID is in the URL when you open it in a browser: `https://app.slack.com/client/T.../C0123456789` — the `C...` part is the channel ID
 > 3. Alternatively, right-click the channel name → **Copy link** — the channel ID is the last path segment
 >
-> The JID format for NanoClaw is: `slack:C0123456789`
+> The JID format for GhostClaw is: `slack:C0123456789`
 
 Wait for the user to provide the channel ID.
 

@@ -75,7 +75,7 @@ describe('plist generation', () => {
   it('contains the correct label', () => {
     const plist = generatePlist(
       '/usr/local/bin/node',
-      '/home/user/nanoclaw',
+      '/home/user/ghostclaw',
       '/home/user',
     );
     expect(plist).toContain('<string>com.ghostclaw</string>');
@@ -84,7 +84,7 @@ describe('plist generation', () => {
   it('uses the correct node path', () => {
     const plist = generatePlist(
       '/opt/node/bin/node',
-      '/home/user/nanoclaw',
+      '/home/user/ghostclaw',
       '/home/user',
     );
     expect(plist).toContain('<string>/opt/node/bin/node</string>');
@@ -93,16 +93,16 @@ describe('plist generation', () => {
   it('points to dist/index.js', () => {
     const plist = generatePlist(
       '/usr/local/bin/node',
-      '/home/user/nanoclaw',
+      '/home/user/ghostclaw',
       '/home/user',
     );
-    expect(plist).toContain('/home/user/nanoclaw/dist/index.js');
+    expect(plist).toContain('/home/user/ghostclaw/dist/index.js');
   });
 
   it('sets log paths', () => {
     const plist = generatePlist(
       '/usr/local/bin/node',
-      '/home/user/nanoclaw',
+      '/home/user/ghostclaw',
       '/home/user',
     );
     expect(plist).toContain('ghostclaw.log');
@@ -114,7 +114,7 @@ describe('systemd unit generation', () => {
   it('user unit uses default.target', () => {
     const unit = generateSystemdUnit(
       '/usr/bin/node',
-      '/home/user/nanoclaw',
+      '/home/user/ghostclaw',
       '/home/user',
       false,
     );
@@ -124,7 +124,7 @@ describe('systemd unit generation', () => {
   it('system unit uses multi-user.target', () => {
     const unit = generateSystemdUnit(
       '/usr/bin/node',
-      '/home/user/nanoclaw',
+      '/home/user/ghostclaw',
       '/home/user',
       true,
     );
@@ -134,7 +134,7 @@ describe('systemd unit generation', () => {
   it('contains restart policy', () => {
     const unit = generateSystemdUnit(
       '/usr/bin/node',
-      '/home/user/nanoclaw',
+      '/home/user/ghostclaw',
       '/home/user',
       false,
     );
@@ -145,19 +145,19 @@ describe('systemd unit generation', () => {
   it('sets correct ExecStart', () => {
     const unit = generateSystemdUnit(
       '/usr/bin/node',
-      '/srv/nanoclaw',
+      '/srv/ghostclaw',
       '/home/user',
       false,
     );
     expect(unit).toContain(
-      'ExecStart=/usr/bin/node /srv/nanoclaw/dist/index.js',
+      'ExecStart=/usr/bin/node /srv/ghostclaw/dist/index.js',
     );
   });
 });
 
 describe('WSL nohup fallback', () => {
   it('generates a valid wrapper script', () => {
-    const projectRoot = '/home/user/nanoclaw';
+    const projectRoot = '/home/user/ghostclaw';
     const nodePath = '/usr/bin/node';
     const pidFile = path.join(projectRoot, 'ghostclaw.pid');
 

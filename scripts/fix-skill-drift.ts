@@ -100,7 +100,7 @@ function fixSkill(skillName: string, projectRoot: string): FixResult[] {
     // Get the source file at that commit (the old base the skill was written against)
     const tmpOldBase = path.join(
       os.tmpdir(),
-      `nanoclaw-drift-base-${crypto.randomUUID()}`,
+      `ghostclaw-drift-base-${crypto.randomUUID()}`,
     );
     try {
       const oldBase = execSync(`git show "${lastCommit}:${relPath}"`, {
