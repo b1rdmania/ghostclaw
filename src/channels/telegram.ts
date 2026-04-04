@@ -19,8 +19,8 @@ export interface TelegramChannelOpts {
   onMessage: OnInboundMessage;
   onChatMetadata: OnChatMetadata;
   registeredGroups: () => Record<string, RegisteredGroup>;
-  onReset?: (chatJid: string) => boolean;
-  onHardReset?: (chatJid: string) => Promise<string>;
+  onSessionReset?: (chatJid: string) => boolean;
+  onReset?: (chatJid: string) => Promise<string>;
   onGetStatus?: () => string;
 }
 
@@ -59,37 +59,23 @@ export class TelegramChannel implements Channel {
       ctx.reply(`${ASSISTANT_NAME} is online.`);
     });
 
-    // Command to force-kill a stalled agent, clear the queue, and start fresh
-    this.bot.command('reset', (ctx) => {
+    // Full reset: kill all agents, clear tasks, wipe sessions, restart
+    this.bot.command('reset', async (ctx) => {
       const chatJid = `tg:${ctx.chat.id}`;
       const group = this.opts.registeredGroups()[chatJid];
       if (!group) {
         ctx.reply('Not a registered chat.');
         return;
       }
-      this.opts.onReset?.(chatJid);
-      ctx.reply(
-        'Reset. Agent killed and queue cleared — send me something to start fresh.',
-      );
-    });
-
-    // Hard reset: kill all agents, clear tasks, wipe sessions, advance cursor, restart
-    this.bot.command('hardreset', async (ctx) => {
-      const chatJid = `tg:${ctx.chat.id}`;
-      const group = this.opts.registeredGroups()[chatJid];
-      if (!group) {
-        ctx.reply('Not a registered chat.');
-        return;
-      }
-      await ctx.reply('Hard reset in progress...');
+      await ctx.reply('Reset in progress...');
       try {
-        const report = await this.opts.onHardReset?.(chatJid);
-        await ctx.reply(report || 'Hard reset complete.');
+        const report = await this.opts.onReset?.(chatJid);
+        await ctx.reply(report || 'Reset complete.');
         await ctx.reply('Restarting — back in a moment.');
         setTimeout(() => process.exit(0), 500);
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        await ctx.reply(`Hard reset failed: ${msg.slice(0, 500)}`);
+        await ctx.reply(`Reset failed: ${msg.slice(0, 500)}`);
       }
     });
 
@@ -201,7 +187,7 @@ export class TelegramChannel implements Channel {
       }
 
       // Reset the session so the new model takes effect immediately
-      this.opts.onReset?.(chatJid);
+      this.opts.onSessionReset?.(chatJid);
 
       await ctx.reply(
         `Model switched to <b>${escapeXml(match.alias)}</b>. Session reset — next message uses the new model.`,
@@ -477,10 +463,9 @@ export class TelegramChannel implements Channel {
           description: 'Active agents, queue depth, uptime',
         },
         { command: 'skills', description: 'List installed skills' },
-        { command: 'reset', description: 'Kill stalled agent and clear queue' },
         {
-          command: 'hardreset',
-          description: 'Nuclear reset — kill all, wipe sessions, restart',
+          command: 'reset',
+          description: 'Kill agents, wipe sessions, restart fresh',
         },
         { command: 'model', description: 'View or switch AI model' },
         { command: 'update', description: 'Pull latest code and restart' },

@@ -773,7 +773,7 @@ async function main(): Promise<void> {
       isGroup?: boolean,
     ) => storeChatMetadata(chatJid, timestamp, name, channel, isGroup),
     registeredGroups: () => registeredGroups,
-    onReset: (chatJid: string) => {
+    onSessionReset: (chatJid: string) => {
       queue.clearQueue(chatJid);
       const group = registeredGroups[chatJid];
       if (group) {
@@ -789,7 +789,7 @@ async function main(): Promise<void> {
       }
       return queue.killAgent(chatJid);
     },
-    onHardReset: async (chatJid: string) => {
+    onReset: async (chatJid: string) => {
       const report: string[] = [];
 
       // 1. Kill all active agents
