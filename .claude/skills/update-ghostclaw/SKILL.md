@@ -11,6 +11,14 @@ Pulls the latest GhostClaw release, runs migrations, rebuilds, and restarts the 
 
 ### 1. Preflight
 
+**Memory warning:** Before proceeding, tell the user:
+
+> "⚠️ Heads up: updating will reset your active session. If you want to preserve recent conversation context, back up your memory files first:
+> - `groups/main/memory/` — identity, state, and log
+> - `groups/main/CLAUDE.md` — personalised soul
+>
+> The update won't delete these files, but a fresh session after restart won't have the previous conversation in context."
+
 Check that the working tree is clean:
 
 ```bash
@@ -111,7 +119,22 @@ npm test
 
 If tests fail, warn the user but don't block. They may have local customisations that diverge from upstream tests.
 
-### 6. Restart service
+### 6. Hard reset sessions
+
+Clear all stored sessions so agents start fresh after restart (stale sessions from the previous version can cause auth or execution errors):
+
+```bash
+node -e "
+const Database = require('better-sqlite3');
+const db = new Database('store/messages.db');
+const result = db.prepare('DELETE FROM sessions').run();
+console.log('Cleared ' + result.changes + ' session(s)');
+"
+```
+
+Report how many sessions were cleared.
+
+### 7. Restart service
 
 Detect the platform and restart:
 
@@ -130,7 +153,7 @@ Tell the user to restart manually.
 
 To detect: check if `launchctl list 2>/dev/null | grep com.ghostclaw` finds something (macOS), otherwise check if `systemctl --user is-active ghostclaw 2>/dev/null` works (Linux).
 
-### 7. Verify
+### 8. Verify
 
 Wait 3 seconds, then check the service is running:
 

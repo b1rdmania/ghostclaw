@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.7.3 (2026-04-04) — OAuth extra usage support + update hard reset
+
+### New
+- **OAuth extra usage support** — GhostClaw now works with Claude Code OAuth tokens when extra usage bundles are active. No API key required. The `CLAUDE_CODE_OAUTH_TOKEN` in `.env` is the primary auth path; `ANTHROPIC_API_KEY` remains supported as an alternative.
+- **Hard session reset on update** — `/update-ghostclaw` now deletes all stored sessions from the DB before restarting. Prevents stale sessions from causing auth or execution errors after an update. Previously relied on a soft restart which left old session state in place.
+- **Pre-update memory warning** — `/update-ghostclaw` now warns users to back up `groups/main/memory/` and `groups/main/CLAUDE.md` before proceeding, since a fresh session after restart won't have prior conversation context.
+
+## v0.7.2 (2026-04-03) — Unified reset command
+
+### Changes
+- **`/reset` merged with `/hardreset`** — the two commands have been unified. `/reset` now performs a full hard reset (kill agents, clear tasks, wipe session, advance cursor, restart). The separate `/hardreset` command has been removed.
+
 ## v0.7.1 (2026-04-03) — Stability + hard reset + memory reliability
 
 ### New
