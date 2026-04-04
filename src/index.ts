@@ -21,9 +21,9 @@ import { waitForMessage } from './message-signal.js';
 import { TelegramChannel } from './channels/telegram.js';
 import { WhatsAppChannel } from './channels/whatsapp.js';
 import { initErrorAlerts, sendErrorAlert } from './error-alerts.js';
-// Fast path mothballed — OAuth token doesn't work with raw Anthropic API.
-// Revisit when ANTHROPIC_API_KEY is available or Agent SDK supports lightweight mode.
-// import { tryFastPath, shouldBypassFastPath } from './fast-path.js';
+// Fast path mothballed — requires ANTHROPIC_API_KEY, OAuth tokens not supported by raw SDK.
+// To enable: uncomment the import below, then gate calls with isFastPathAvailable().
+// import { tryFastPath, shouldBypassFastPath, isFastPathAvailable } from './fast-path.js';
 import {
   ContainerOutput,
   runContainerAgent,

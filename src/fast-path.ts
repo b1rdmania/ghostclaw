@@ -77,17 +77,21 @@ function buildSystemPrompt(groupFolder: string): string {
 
 let client: Anthropic | null = null;
 
+/** Fast path requires a direct API key — OAuth tokens don't work with the raw Anthropic SDK. */
+export function isFastPathAvailable(): boolean {
+  const secrets = readEnvFile(['ANTHROPIC_API_KEY']);
+  return !!secrets.ANTHROPIC_API_KEY;
+}
+
 function getClient(): Anthropic {
   if (!client) {
-    const secrets = readEnvFile([
-      'CLAUDE_CODE_OAUTH_TOKEN',
-      'ANTHROPIC_API_KEY',
-    ]);
-    const apiKey = secrets.ANTHROPIC_API_KEY || secrets.CLAUDE_CODE_OAUTH_TOKEN;
-    if (!apiKey) {
-      throw new Error('No API key or OAuth token found for fast path');
+    const secrets = readEnvFile(['ANTHROPIC_API_KEY']);
+    if (!secrets.ANTHROPIC_API_KEY) {
+      throw new Error(
+        'Fast path requires ANTHROPIC_API_KEY — OAuth tokens are not supported',
+      );
     }
-    client = new Anthropic({ apiKey });
+    client = new Anthropic({ apiKey: secrets.ANTHROPIC_API_KEY });
   }
   return client;
 }
