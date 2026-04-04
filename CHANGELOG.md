@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.7.4 (2026-04-04) — Idle timeout architecture fix
+
+### Fixes
+- **Idle timer now tracks agent activity, not user-facing output** — the idle timer previously only reset on stdout (user-facing results). All internal activity — tool calls, Task sub-agent progress, SDK messages — logs to stderr and was invisible to the timer. A research task using a Task sub-agent would always hit the idle timeout because the parent session is silent while waiting for the sub-agent result. The stderr handler now also resets the idle timer, so "idle" correctly means "no activity at all" rather than "no output to Birdmania."
+- **Session validation before resume** — before passing a session ID to the SDK, the agent-runner scans the session `.jsonl` for unmatched `tool_use` entries. A broken session (parent timed out mid-Task) caused the SDK to hang silently on resume. Now detected and cleared before the hang, starting fresh instead.
+- **Clear session on no-output idle timeout** — if the orchestrator receives an idle timeout with no streaming output and no new session ID, it clears the stored session before retrying. Belt-and-suspenders with session validation above.
+- **Stderr in timeout logs** — timeout log files now include stderr output, making stall diagnosis significantly easier.
+- **Model updated** — `GHOSTCLAW_MODEL` bumped from `claude-sonnet-4-5-20250929` to `claude-sonnet-4-6`.
+
 ## v0.7.3 (2026-04-04) — OAuth extra usage support + update hard reset
 
 ### New
