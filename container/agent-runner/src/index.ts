@@ -356,6 +356,51 @@ function waitForIpcMessage(): Promise<string | null> {
  * allowing agent teams subagents to run to completion.
  * Also pipes IPC messages into the stream during the query.
  */
+/**
+ * Check a session .jsonl file for unmatched tool_use entries (tool_use with no tool_result).
+ * Returns true if the session is valid/resumable, false if it's broken.
+ * An absent or unreadable session file is treated as valid (will start fresh).
+ */
+function isSessionResumable(sessionId: string): boolean {
+  const configDir = process.env.CLAUDE_CONFIG_DIR;
+  if (!configDir || !sessionId) return true;
+
+  // Claude Code stores sessions under projects/{sanitized_cwd}/{sessionId}.jsonl
+  const cwd = process.env.GHOSTCLAW_GROUP_DIR || process.cwd();
+  const sanitizedCwd = cwd.replace(/\//g, '-').replace(/^-/, '');
+  const sessionFile = path.join(configDir, 'projects', sanitizedCwd, `${sessionId}.jsonl`);
+
+  try {
+    if (!fs.existsSync(sessionFile)) return true;
+    const content = fs.readFileSync(sessionFile, 'utf-8');
+    const lines = content.split('\n').filter(l => l.trim());
+
+    const toolUseIds = new Set<string>();
+    const toolResultIds = new Set<string>();
+
+    for (const line of lines) {
+      try {
+        const entry = JSON.parse(line);
+        const contentItems = entry?.message?.content;
+        if (!Array.isArray(contentItems)) continue;
+        for (const item of contentItems) {
+          if (item?.type === 'tool_use' && item?.id) toolUseIds.add(item.id);
+          if (item?.type === 'tool_result' && item?.tool_use_id) toolResultIds.add(item.tool_use_id);
+        }
+      } catch { /* skip malformed lines */ }
+    }
+
+    const unmatched = [...toolUseIds].filter(id => !toolResultIds.has(id));
+    if (unmatched.length > 0) {
+      log(`Session ${sessionId} has ${unmatched.length} unmatched tool_use(s) — broken, starting fresh`);
+      return false;
+    }
+    return true;
+  } catch {
+    return true; // unreadable → treat as valid, let SDK handle it
+  }
+}
+
 // Names reserved for programmatic servers — cannot be overridden via settings.json.
 const RESERVED_MCP_NAMES = new Set(['ghostclaw']);
 
@@ -575,6 +620,14 @@ async function main(): Promise<void> {
   const mcpServerPath = path.join(__dirname, 'ipc-mcp-stdio.js');
 
   let sessionId = containerInput.sessionId;
+
+  // Validate session before resuming — a broken session (unmatched tool_use) causes
+  // the SDK to hang silently. Clear it so we start fresh rather than spiralling.
+  if (sessionId && !isSessionResumable(sessionId)) {
+    log(`Clearing broken session ${sessionId}, will start a fresh session`);
+    sessionId = undefined;
+  }
+
   fs.mkdirSync(IPC_INPUT_DIR, { recursive: true });
 
   // Clean up stale _close sentinel from previous container runs

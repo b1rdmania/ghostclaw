@@ -445,6 +445,9 @@ export async function runContainerAgent(
             `Duration: ${duration}ms`,
             `Exit Code: ${code}`,
             `Had Streaming Output: ${hadStreamingOutput}`,
+            ``,
+            `=== Stderr ===`,
+            stderr || '(empty)',
           ].join('\n'),
         );
 

@@ -425,6 +425,19 @@ async function runAgent(
     }
 
     if (output.status === 'error') {
+      // If the agent timed out without producing any output and returned no new
+      // session ID, the existing session is likely broken (e.g. unmatched tool_use
+      // from a sub-agent that outlived the idle timeout). Clear it so the next
+      // retry starts fresh instead of hanging on the same broken state.
+      const isIdleTimeout = output.error?.includes('idle timeout');
+      if (isIdleTimeout && !output.newSessionId && sessions[group.folder]) {
+        logger.warn(
+          { group: group.name, clearedSession: sessions[group.folder] },
+          'Idle timeout with no output — clearing session to prevent resume hang',
+        );
+        delete sessions[group.folder];
+        deleteSession(group.folder);
+      }
       logger.error(
         { group: group.name, error: output.error },
         'Container agent error',
