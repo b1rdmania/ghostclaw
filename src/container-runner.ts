@@ -296,6 +296,10 @@ export async function runContainerAgent(
       stdio: ['pipe', 'pipe', 'pipe'],
       env: agentEnv,
       cwd: groupDir,
+      // detached=true creates a new process group with the agent as leader.
+      // This lets us kill the entire group (agent + all MCP server children)
+      // with process.kill(-pid, signal) rather than just the top-level node process.
+      detached: true,
     });
 
     onProcess(agentProcess, processName);
@@ -408,21 +412,25 @@ export async function runContainerAgent(
       timeoutHandled = true;
       timedOut = true;
       timeoutReason = reason;
+      const pid = agentProcess.pid;
       logger.error(
-        { group: group.name, processName, reason },
+        { group: group.name, processName, reason, pid },
         reason === 'idle'
-          ? 'Agent idle timeout — no stdout for too long, killing process'
-          : 'Agent absolute timeout — hard ceiling reached, killing process',
+          ? 'Agent idle timeout — no stdout for too long, killing process group'
+          : 'Agent absolute timeout — hard ceiling reached, killing process group',
       );
-      agentProcess.kill('SIGTERM');
-      agentProcess.once('close', () => {
-        // Process already dead, nothing more to do
-      });
+      // Kill the entire process group (negative PID) so MCP server children
+      // spawned by the Claude Agent SDK are also terminated, not orphaned.
+      try {
+        if (pid) process.kill(-pid, 'SIGTERM');
+      } catch {
+        /* already dead */
+      }
       setTimeout(() => {
         try {
-          agentProcess.kill('SIGKILL');
+          if (pid) process.kill(-pid, 'SIGKILL');
         } catch {
-          // already dead
+          /* already dead */
         }
       }, 15000);
     };

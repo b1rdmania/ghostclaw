@@ -197,8 +197,17 @@ export class GroupQueue {
     const state = this.getGroup(groupJid);
     if (!state.process || state.process.killed) return false;
 
-    logger.info({ groupJid }, 'Force-killing agent process (/reset)');
-    state.process.kill('SIGKILL');
+    const pid = state.process.pid;
+    logger.info(
+      { groupJid, pid },
+      'Force-killing agent process group (/reset)',
+    );
+    // Kill the entire process group so MCP server children are also terminated.
+    try {
+      if (pid) process.kill(-pid, 'SIGKILL');
+    } catch {
+      /* already dead */
+    }
     return true;
   }
 
