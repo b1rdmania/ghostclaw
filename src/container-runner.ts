@@ -10,7 +10,6 @@ import {
   AGENT_ABSOLUTE_TIMEOUT,
   AGENT_IDLE_TIMEOUT,
   CONTAINER_MAX_OUTPUT_SIZE,
-  CONTAINER_TIMEOUT,
   DATA_DIR,
   GROUPS_DIR,
 } from './config.js';
@@ -81,13 +80,37 @@ function readSecrets(): Record<string, string> {
     'ELEVENLABS_VOICE_ID',
   ]);
 
-  // Prefer keychain token over .env — keychain is always current
+  // Prefer keychain token over .env — keychain is always current.
+  // Also write it back to .env so a reboot with a locked keychain still
+  // has a reasonably recent token to fall back on.
   const keychainToken = readOAuthTokenFromKeychain();
   if (keychainToken) {
     secrets.CLAUDE_CODE_OAUTH_TOKEN = keychainToken;
+    writeOAuthTokenToEnv(keychainToken);
   }
 
   return secrets;
+}
+
+/**
+ * Write the OAuth token back to .env so it stays fresh for reboot scenarios
+ * where the keychain may be locked before first login.
+ * Silently no-ops if the file can't be read/written.
+ */
+function writeOAuthTokenToEnv(token: string): void {
+  const envPath = path.join(process.cwd(), '.env');
+  try {
+    const content = fs.readFileSync(envPath, 'utf-8');
+    const updated = content.replace(
+      /^CLAUDE_CODE_OAUTH_TOKEN=.*$/m,
+      `CLAUDE_CODE_OAUTH_TOKEN=${token}`,
+    );
+    if (updated !== content) {
+      fs.writeFileSync(envPath, updated);
+    }
+  } catch {
+    // .env missing or unwritable — not fatal
+  }
 }
 
 /**
