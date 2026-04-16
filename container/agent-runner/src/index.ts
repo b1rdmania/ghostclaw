@@ -629,7 +629,12 @@ async function main(): Promise<void> {
 
   // Build SDK env: merge secrets into process.env for the SDK only.
   // Secrets never touch process.env itself, so Bash subprocesses can't see them.
-  const sdkEnv: Record<string, string | undefined> = { ...process.env };
+  const sdkEnv: Record<string, string | undefined> = {
+    ...process.env,
+    // Compact at 165k tokens (vs default ~200k) — earlier compaction preserves
+    // more context fidelity before the window fills. Pulled from NanoClaw upstream.
+    CLAUDE_CODE_AUTO_COMPACT_WINDOW: '165000',
+  };
   for (const [key, value] of Object.entries(containerInput.secrets || {})) {
     sdkEnv[key] = value;
   }
