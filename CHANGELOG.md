@@ -1,5 +1,36 @@
 # Changelog
 
+## v0.8.2 (2026-05-03) — Context diet
+
+Cuts tokens wasted on every full-agent turn.
+
+### Changed
+- **Root `CLAUDE.md` renamed to `DEVELOPER.md`.** The Anthropic SDK auto-loads
+  every `CLAUDE.md` from the agent's CWD up to the git root. The runtime
+  agent runs from `groups/main/`, so it was inheriting ~1,330 tokens of
+  developer documentation (architecture notes, key-file table, NanoClaw
+  heritage) into every system prompt — context that has no business in a
+  Telegram chat turn. The file is unchanged; only its name moved. Per-group
+  `CLAUDE.md` files (`groups/{name}/CLAUDE.md`) keep their name and continue
+  to load as runtime instructions.
+- **Orchestrator-side `appendMemoryLog` deleted.** After every Telegram
+  turn the orchestrator was writing `- [auto] Handled: <raw Telegram XML
+  preview>` to `memory/log.md`. The agent re-read the log on every session
+  start, so it was paying tokens to re-ingest message previews from days
+  past. Logging is now the agent's responsibility — `groups/{name}/CLAUDE.md`
+  already instructs it to prepend meaningful events. Andy is in the loop
+  for chat turns; trust him + the agent.
+- **Existing `[auto]` noise pruned** from `groups/main/memory/log.md` —
+  74 entries dropped, file went from 204 → 86 lines. Real entries
+  (shipped versions, decisions, debugging notes) preserved.
+
+### Notes
+- Gmail MCP tool definitions (~1,500–3,000 tokens per full-agent turn) is
+  the next-biggest waste, but no quick fix without an architectural change
+  (move Gmail to a dedicated email group). SDK doesn't expose
+  `cache_control` on the system prompt option, so we can't cache MCP tool
+  defs the way we cached the fast-path system prompt in v0.8.1.
+
 ## v0.8.1 (2026-05-03) — Fast-path cost levers + reliability nits
 
 ### New

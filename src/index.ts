@@ -9,7 +9,6 @@ import {
   ASSISTANT_NAME,
   getDailyBudgetUsd,
   DATA_DIR,
-  GROUPS_DIR,
   IDLE_TIMEOUT,
   MAIN_GROUP_FOLDER,
   MAX_MESSAGES_PER_PROMPT,
@@ -449,38 +448,6 @@ async function handleAgentError(
   return false;
 }
 
-/**
- * Append `- [auto] Handled: ...` under today's heading in the group's
- * memory/log.md after a successful turn that actually produced output.
- * Best-effort — memory logging must never bring down a conversation.
- */
-function appendMemoryLog(ctx: BatchContext, outcome: AgentTurnOutcome): void {
-  if (!outcome.outputSentToUser) return;
-  try {
-    const logFile = path.join(GROUPS_DIR, ctx.group.folder, 'memory', 'log.md');
-    if (!fs.existsSync(logFile)) return;
-    const today = new Date().toISOString().slice(0, 10);
-    const logContent = fs.readFileSync(logFile, 'utf-8');
-    const taskSummary = currentTasks[ctx.chatJid] || ctx.prompt.slice(0, 120);
-    const entry = `- [auto] Handled: ${taskSummary.replace(/\n/g, ' ')}`;
-    if (logContent.includes(`## ${today}`)) {
-      const updated = logContent.replace(
-        `## ${today}`,
-        `## ${today}\n${entry}`,
-      );
-      fs.writeFileSync(logFile, updated);
-    } else {
-      const updated = logContent.replace(
-        '---\n',
-        `---\n\n## ${today}\n${entry}\n`,
-      );
-      fs.writeFileSync(logFile, updated);
-    }
-  } catch {
-    // Non-critical — don't fail the session over a log write.
-  }
-}
-
 async function processGroupMessages(chatJid: string): Promise<boolean> {
   const ctx = prepareBatch(chatJid);
   if (!ctx) return true;
@@ -501,7 +468,11 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
   if (outcome.hadError) return handleAgentError(ctx, outcome);
 
   consecutiveFailures[ctx.chatJid] = 0;
-  appendMemoryLog(ctx, outcome);
+  // Memory logging is the agent's responsibility — see groups/{group}/CLAUDE.md
+  // for the instruction to prepend meaningful events to memory/log.md. The
+  // previous orchestrator-side auto-write produced "- [auto] Handled: <raw
+  // Telegram XML preview>" entries that were noise the agent re-read on
+  // every session start. Removed in v0.8.2.
   return true;
 }
 
