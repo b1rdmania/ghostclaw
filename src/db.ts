@@ -79,9 +79,24 @@ function createSchema(database: Database.Database): void {
       folder TEXT NOT NULL UNIQUE,
       trigger_pattern TEXT NOT NULL,
       added_at TEXT NOT NULL,
-      container_config TEXT,
+      extra_dirs TEXT,
       requires_trigger INTEGER DEFAULT 1
     );
+
+    CREATE TABLE IF NOT EXISTS usage_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      timestamp TEXT NOT NULL,
+      group_folder TEXT,
+      chat_jid TEXT,
+      source TEXT NOT NULL,
+      model TEXT,
+      input_tokens INTEGER DEFAULT 0,
+      output_tokens INTEGER DEFAULT 0,
+      cache_creation_input_tokens INTEGER DEFAULT 0,
+      cache_read_input_tokens INTEGER DEFAULT 0,
+      cost_usd REAL DEFAULT 0
+    );
+    CREATE INDEX IF NOT EXISTS idx_usage_timestamp ON usage_events(timestamp);
   `);
 
   // Add context_mode column if it doesn't exist (migration for existing DBs)
@@ -100,6 +115,15 @@ function createSchema(database: Database.Database): void {
     );
   } catch {
     /* column already exists */
+  }
+
+  // Rename legacy container_config column to extra_dirs (v0.8.0 — no more Docker).
+  try {
+    database.exec(
+      `ALTER TABLE registered_groups RENAME COLUMN container_config TO extra_dirs`,
+    );
+  } catch {
+    /* column already renamed or never existed */
   }
 
   // Add is_bot_message column if it doesn't exist (migration for existing DBs)
@@ -152,6 +176,103 @@ export function initDatabase(): void {
 export function _initTestDatabase(): void {
   db = new Database(':memory:');
   createSchema(db);
+}
+
+export interface UsageEvent {
+  input_tokens: number;
+  output_tokens: number;
+  cache_creation_input_tokens?: number;
+  cache_read_input_tokens?: number;
+  cost_usd?: number;
+  model?: string;
+}
+
+export function recordUsage(
+  source: 'agent' | 'fast-path',
+  event: UsageEvent,
+  groupFolder?: string,
+  chatJid?: string,
+): void {
+  db.prepare(
+    `INSERT INTO usage_events
+     (timestamp, group_folder, chat_jid, source, model,
+      input_tokens, output_tokens,
+      cache_creation_input_tokens, cache_read_input_tokens, cost_usd)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  ).run(
+    new Date().toISOString(),
+    groupFolder ?? null,
+    chatJid ?? null,
+    source,
+    event.model ?? null,
+    event.input_tokens || 0,
+    event.output_tokens || 0,
+    event.cache_creation_input_tokens || 0,
+    event.cache_read_input_tokens || 0,
+    event.cost_usd || 0,
+  );
+}
+
+/** Returns total spend (USD) since the start of today (UTC). */
+export function getTodayCostUsd(): number {
+  const startOfDay = new Date();
+  startOfDay.setUTCHours(0, 0, 0, 0);
+  const row = db
+    .prepare(
+      `SELECT COALESCE(SUM(cost_usd), 0) AS total
+       FROM usage_events
+       WHERE timestamp >= ?`,
+    )
+    .get(startOfDay.toISOString()) as { total: number };
+  return row.total || 0;
+}
+
+export interface UsageSummary {
+  today_usd: number;
+  today_input_tokens: number;
+  today_output_tokens: number;
+  today_cache_read_tokens: number;
+  today_events: number;
+}
+
+export interface SourceSpend {
+  source: string;
+  events: number;
+  cost_usd: number;
+}
+
+export function getTodaySpendBySource(): SourceSpend[] {
+  const startOfDay = new Date();
+  startOfDay.setUTCHours(0, 0, 0, 0);
+  return db
+    .prepare(
+      `SELECT source,
+              COUNT(*) AS events,
+              COALESCE(SUM(cost_usd), 0) AS cost_usd
+       FROM usage_events
+       WHERE timestamp >= ?
+       GROUP BY source
+       ORDER BY cost_usd DESC`,
+    )
+    .all(startOfDay.toISOString()) as SourceSpend[];
+}
+
+export function getTodayUsageSummary(): UsageSummary {
+  const startOfDay = new Date();
+  startOfDay.setUTCHours(0, 0, 0, 0);
+  const row = db
+    .prepare(
+      `SELECT
+         COALESCE(SUM(cost_usd), 0) AS today_usd,
+         COALESCE(SUM(input_tokens), 0) AS today_input_tokens,
+         COALESCE(SUM(output_tokens), 0) AS today_output_tokens,
+         COALESCE(SUM(cache_read_input_tokens), 0) AS today_cache_read_tokens,
+         COUNT(*) AS today_events
+       FROM usage_events
+       WHERE timestamp >= ?`,
+    )
+    .get(startOfDay.toISOString()) as UsageSummary;
+  return row;
 }
 
 /**
@@ -272,7 +393,7 @@ export function storeMessage(msg: NewMessage): void {
 }
 
 /**
- * Store a message directly (for non-WhatsApp channels that don't use Baileys proto).
+ * Store a message directly (plain string content, no proto decoding).
  */
 export function storeMessageDirect(msg: {
   id: string;
@@ -563,7 +684,7 @@ export function getRegisteredGroup(
         folder: string;
         trigger_pattern: string;
         added_at: string;
-        container_config: string | null;
+        extra_dirs: string | null;
         requires_trigger: number | null;
       }
     | undefined;
@@ -581,9 +702,7 @@ export function getRegisteredGroup(
     folder: row.folder,
     trigger: row.trigger_pattern,
     added_at: row.added_at,
-    containerConfig: row.container_config
-      ? JSON.parse(row.container_config)
-      : undefined,
+    extraDirs: parseExtraDirs(row.extra_dirs),
     requiresTrigger:
       row.requires_trigger === null ? undefined : row.requires_trigger === 1,
   };
@@ -594,7 +713,7 @@ export function setRegisteredGroup(jid: string, group: RegisteredGroup): void {
     throw new Error(`Invalid group folder "${group.folder}" for JID ${jid}`);
   }
   db.prepare(
-    `INSERT OR REPLACE INTO registered_groups (jid, name, folder, trigger_pattern, added_at, container_config, requires_trigger)
+    `INSERT OR REPLACE INTO registered_groups (jid, name, folder, trigger_pattern, added_at, extra_dirs, requires_trigger)
      VALUES (?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     jid,
@@ -602,7 +721,9 @@ export function setRegisteredGroup(jid: string, group: RegisteredGroup): void {
     group.folder,
     group.trigger,
     group.added_at,
-    group.containerConfig ? JSON.stringify(group.containerConfig) : null,
+    group.extraDirs && group.extraDirs.length > 0
+      ? JSON.stringify(group.extraDirs)
+      : null,
     group.requiresTrigger === undefined ? 1 : group.requiresTrigger ? 1 : 0,
   );
 }
@@ -614,7 +735,7 @@ export function getAllRegisteredGroups(): Record<string, RegisteredGroup> {
     folder: string;
     trigger_pattern: string;
     added_at: string;
-    container_config: string | null;
+    extra_dirs: string | null;
     requires_trigger: number | null;
   }>;
   const result: Record<string, RegisteredGroup> = {};
@@ -631,14 +752,36 @@ export function getAllRegisteredGroups(): Record<string, RegisteredGroup> {
       folder: row.folder,
       trigger: row.trigger_pattern,
       added_at: row.added_at,
-      containerConfig: row.container_config
-        ? JSON.parse(row.container_config)
-        : undefined,
+      extraDirs: parseExtraDirs(row.extra_dirs),
       requiresTrigger:
         row.requires_trigger === null ? undefined : row.requires_trigger === 1,
     };
   }
   return result;
+}
+
+/**
+ * Parse the extra_dirs column. Supports the current shape (JSON array of
+ * absolute paths) and the legacy Docker-era shape
+ * ({additionalMounts: [{hostPath, ...}]}) so old DB rows still migrate cleanly.
+ */
+function parseExtraDirs(raw: string | null): string[] | undefined {
+  if (!raw) return undefined;
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) {
+      return parsed.filter((v): v is string => typeof v === 'string');
+    }
+    if (parsed && Array.isArray(parsed.additionalMounts)) {
+      const mounts = parsed.additionalMounts as Array<{ hostPath?: string }>;
+      return mounts
+        .map((m) => m.hostPath)
+        .filter((v): v is string => typeof v === 'string');
+    }
+  } catch {
+    /* malformed JSON — ignore */
+  }
+  return undefined;
 }
 
 // --- JSON migration ---

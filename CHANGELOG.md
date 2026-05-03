@@ -1,5 +1,30 @@
 # Changelog
 
+## v0.8.0 (unreleased) — API-direct, fast-path, budget cap, KISS sweep
+
+### Breaking
+- **OAuth/Max auth removed.** `ANTHROPIC_API_KEY` is now the only supported auth path. `CLAUDE_CODE_OAUTH_TOKEN`, the macOS keychain read in `agent-spawner.ts` (was `container-runner.ts`), and the reboot-fallback write-back to `.env` are all gone. Max/OAuth is no longer a viable login path for GhostClaw usage — moved fully to API-direct, which turns every agent turn into real dollars. See new cost controls below.
+
+### New
+- **Fast-path unmothballed.** `src/fast-path.ts` is now wired into the message flow in `src/index.ts`. Simple chat, greetings, and memory-recall messages are answered directly via the raw Anthropic SDK — no agent spawn, no tools, no session state. The router prompt tells the model to return `[HANDOFF]` for anything needing tools/files/MCP, which falls through to the full agent as before. Memory-write patterns (`remember`, `save this`, `log that`, `file this`, `keep in mind`, etc.) always bypass the fast-path.
+- **Separate fast-path model env var.** `GHOSTCLAW_FAST_PATH_MODEL` (default `claude-sonnet-4-6`) is independent of `GHOSTCLAW_MODEL`, so `/model opus` on the main agent doesn't accidentally push Opus calls through the cheap triage path. Haiku was tried first as the default but flunked the `[HANDOFF]` contract — leaked "Let me check…" preamble and occasionally hallucinated tool calls. Sonnet costs ~3x per triage call but is still ~25–100x cheaper than spawning the full agent (no tools, no MCP, no CLAUDE.md). Set `GHOSTCLAW_FAST_PATH_MODEL=claude-haiku-4-5` to opt back in.
+- **Per-turn usage tracking.** The agent-runner extracts `usage` + `total_cost_usd` + `model` from the SDK result message and passes them up via `AgentOutput`. The orchestrator writes every turn (agent or fast-path) to a new `usage_events` SQLite table: `(timestamp, group_folder, chat_jid, source, model, input_tokens, output_tokens, cache_creation_input_tokens, cache_read_input_tokens, cost_usd)`.
+- **Daily budget cap.** `GHOSTCLAW_DAILY_BUDGET_USD` env var. When today's spend meets/exceeds the cap, the orchestrator forces fast-path-only mode: simple chat still works, tool-using work is paused until UTC midnight. A single Telegram alert is sent the first time the cap is hit each day. Disabled when the var is unset or `0`.
+- **`/model` command updated to current generation.** `sonnet` → `claude-sonnet-4-6`, `opus` → `claude-opus-4-7`, `haiku` → `claude-haiku-4-5`. Default stays Sonnet.
+
+### KISS cleanup
+- **Dead code removed.**
+  - `routeOutbound()` in `src/router.ts` — exported but called nowhere.
+  - `CONTAINER_IMAGE` and `CONTAINER_TIMEOUT` in `src/config.ts` — leftover from the Docker architecture, not used by any consumer (only mocked in a test file that didn't actually consume them).
+  - `escapeRegex` helper — one-use, inlined into `TRIGGER_PATTERN`.
+  - Backwards-compatibility re-export of `escapeXml` / `formatMessages` from `src/index.ts` — refactor is long done, nothing imports from there.
+- **Tracked cruft removed.** `RALPH-PROGRESS.md` (stale one-task progress file), `fetch_tweets.js` + `fetch_tweets.mjs` (orphaned scripts).
+- **Naming residue.** Log lines saying "closing container stdin" updated to "closing agent stdin". `container/` directory renamed and split: `container/agent-runner/` → `agent-runner/` (top-level), `container/dashboard.html` → `public/dashboard.html`, `container/skills/` → `agent-runner/skills/`. File `src/container-runner.ts` renamed to `src/agent-spawner.ts`; exported `runContainerAgent` renamed to `spawnAgentProcess`. Types `ContainerInput`/`ContainerOutput` renamed to `AgentInput`/`AgentOutput`. `MAX_CONCURRENT_CONTAINERS` → `MAX_CONCURRENT_AGENTS`. Variable/log naming (`containerName`, `isTaskContainer`, `Container agent error`, etc.) swept through for `processName`, `isTaskProcess`, `Agent process error`.
+- **Skill drift.** The three channel skills (`add-discord`, `add-telegram`, `add-slack`) had their `modify/src/config.ts` and `modify/src/index.ts` templates updated to match the new `src/config.ts` and `src/index.ts`, and their test assertions for the removed `CONTAINER_IMAGE` export were dropped. `config.ts.intent.md` files updated to match.
+
+### Deferred
+- **Prompt caching** on user-authored CLAUDE.md / memory files is not supported by `@anthropic-ai/claude-agent-sdk` v0.2.92's `systemPrompt` option (string or `claude_code` preset only — no `cache_control` on user blocks). Revisit if monthly spend justifies bypassing the SDK. The budget cap above is the interim cost control.
+
 ## v0.7.6 (2026-04-06) — SDK auto-update + broken session recovery
 
 ### New

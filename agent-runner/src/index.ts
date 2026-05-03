@@ -3,7 +3,7 @@
  * Runs inside a container, receives config via stdin, outputs result to stdout
  *
  * Input protocol:
- *   Stdin: Full ContainerInput JSON (read until EOF, like before)
+ *   Stdin: Full AgentInput JSON (read until EOF, like before)
  *   IPC:   Follow-up messages written as JSON files to /workspace/ipc/input/
  *          Files: {type:"message", text:"..."}.json — polled and consumed
  *          Sentinel: /workspace/ipc/input/_close — signals session end
@@ -19,7 +19,7 @@ import path from 'path';
 import { query, HookCallback, PreCompactHookInput, PreToolUseHookInput } from '@anthropic-ai/claude-agent-sdk';
 import { fileURLToPath } from 'url';
 
-interface ContainerInput {
+interface AgentInput {
   prompt: string;
   sessionId?: string;
   groupFolder: string;
@@ -30,11 +30,21 @@ interface ContainerInput {
   secrets?: Record<string, string>;
 }
 
-interface ContainerOutput {
+interface UsageEvent {
+  input_tokens: number;
+  output_tokens: number;
+  cache_creation_input_tokens?: number;
+  cache_read_input_tokens?: number;
+  cost_usd?: number;
+  model?: string;
+}
+
+interface AgentOutput {
   status: 'success' | 'error';
   result: string | null;
   newSessionId?: string;
   error?: string;
+  usage?: UsageEvent;
 }
 
 interface SessionEntry {
@@ -109,7 +119,7 @@ async function readStdin(): Promise<string> {
 const OUTPUT_START_MARKER = '---GHOSTCLAW_OUTPUT_START---';
 const OUTPUT_END_MARKER = '---GHOSTCLAW_OUTPUT_END---';
 
-function writeOutput(output: ContainerOutput): void {
+function writeOutput(output: AgentOutput): void {
   console.log(OUTPUT_START_MARKER);
   console.log(JSON.stringify(output));
   console.log(OUTPUT_END_MARKER);
@@ -188,9 +198,8 @@ function createPreCompactHook(assistantName?: string): HookCallback {
 }
 
 // Secrets to strip from Bash tool subprocess environments.
-// These are needed by claude-code for API auth but should never
-// be visible to commands Kit runs.
-const SECRET_ENV_VARS = ['ANTHROPIC_API_KEY', 'CLAUDE_CODE_OAUTH_TOKEN'];
+// Needed by the SDK for API auth but should never leak into user commands.
+const SECRET_ENV_VARS = ['ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN'];
 
 function createSanitizeBashHook(): HookCallback {
   return async (input, _toolUseId, _context) => {
@@ -451,7 +460,7 @@ async function runQuery(
   prompt: string,
   sessionId: string | undefined,
   mcpServerPath: string,
-  containerInput: ContainerInput,
+  containerInput: AgentInput,
   sdkEnv: Record<string, string | undefined>,
   resumeAt?: string,
 ): Promise<{ newSessionId?: string; lastAssistantUuid?: string; closedDuringQuery: boolean; resultCount: number }> {
@@ -581,12 +590,40 @@ async function runQuery(
 
     if (message.type === 'result') {
       resultCount++;
-      const textResult = 'result' in message ? (message as { result?: string }).result : null;
-      log(`Result #${resultCount}: subtype=${message.subtype}${textResult ? ` text=${textResult.slice(0, 200)}` : ''}`);
+      const resultMsg = message as {
+        subtype?: string;
+        result?: string;
+        usage?: {
+          input_tokens?: number;
+          output_tokens?: number;
+          cache_creation_input_tokens?: number;
+          cache_read_input_tokens?: number;
+        };
+        total_cost_usd?: number;
+        model?: string;
+      };
+      const textResult = resultMsg.result ?? null;
+      let usage: UsageEvent | undefined;
+      if (resultMsg.usage) {
+        usage = {
+          input_tokens: resultMsg.usage.input_tokens || 0,
+          output_tokens: resultMsg.usage.output_tokens || 0,
+          cache_creation_input_tokens:
+            resultMsg.usage.cache_creation_input_tokens,
+          cache_read_input_tokens: resultMsg.usage.cache_read_input_tokens,
+          cost_usd:
+            typeof resultMsg.total_cost_usd === 'number'
+              ? resultMsg.total_cost_usd
+              : undefined,
+          model: resultMsg.model,
+        };
+      }
+      log(`Result #${resultCount}: subtype=${resultMsg.subtype}${textResult ? ` text=${textResult.slice(0, 200)}` : ''}${usage ? ` cost=$${usage.cost_usd?.toFixed(4) ?? '?'}` : ''}`);
       writeOutput({
         status: 'success',
         result: textResult || null,
-        newSessionId
+        newSessionId,
+        usage,
       });
     }
   }
@@ -600,9 +637,9 @@ const HEARTBEAT_MARKER = '---GHOSTCLAW_HEARTBEAT---';
 const HEARTBEAT_INTERVAL_MS = 2 * 60 * 1000; // 2 minutes
 
 /**
- * Write a periodic heartbeat to stdout so the container-runner's idle timer
+ * Write a periodic heartbeat to stdout so the agent-spawner's idle timer
  * resets during long-running operations (e.g. Task sub-agent waits) that
- * produce no other stdout. The marker is not an output — container-runner
+ * produce no other stdout. The marker is not an output — agent-spawner
  * resets the idle timer on any stdout data before checking for output markers.
  */
 function startHeartbeat(): NodeJS.Timeout {
@@ -612,7 +649,7 @@ function startHeartbeat(): NodeJS.Timeout {
 }
 
 async function main(): Promise<void> {
-  let containerInput: ContainerInput;
+  let containerInput: AgentInput;
 
   try {
     const stdinData = await readStdin();
@@ -631,9 +668,12 @@ async function main(): Promise<void> {
   // Secrets never touch process.env itself, so Bash subprocesses can't see them.
   const sdkEnv: Record<string, string | undefined> = {
     ...process.env,
-    // Compact at 165k tokens (vs default ~200k) — earlier compaction preserves
-    // more context fidelity before the window fills. Pulled from NanoClaw upstream.
-    CLAUDE_CODE_AUTO_COMPACT_WINDOW: '165000',
+    // Compact at 80k tokens (vs default ~200k). Under API billing each token
+    // replayed through the session costs real money; aggressive compaction is
+    // the biggest single cost reducer for long-running groups. Override via
+    // process.env.CLAUDE_CODE_AUTO_COMPACT_WINDOW if a group needs more context.
+    CLAUDE_CODE_AUTO_COMPACT_WINDOW:
+      process.env.CLAUDE_CODE_AUTO_COMPACT_WINDOW || '80000',
   };
   for (const [key, value] of Object.entries(containerInput.secrets || {})) {
     sdkEnv[key] = value;
@@ -667,7 +707,7 @@ async function main(): Promise<void> {
     prompt += '\n' + pending.join('\n');
   }
 
-  // Heartbeat: keeps the container-runner's idle timer alive during long-running
+  // Heartbeat: keeps the agent-spawner's idle timer alive during long-running
   // operations (Task sub-agent waits, slow tool calls) that produce no stdout.
   const heartbeat = startHeartbeat();
 

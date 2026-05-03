@@ -99,13 +99,13 @@ export async function run(args: string[]): Promise<void> {
     folder TEXT NOT NULL UNIQUE,
     trigger_pattern TEXT NOT NULL,
     added_at TEXT NOT NULL,
-    container_config TEXT,
+    extra_dirs TEXT,
     requires_trigger INTEGER DEFAULT 1
   )`);
 
   db.prepare(
     `INSERT OR REPLACE INTO registered_groups
-     (jid, name, folder, trigger_pattern, added_at, container_config, requires_trigger)
+     (jid, name, folder, trigger_pattern, added_at, extra_dirs, requires_trigger)
      VALUES (?, ?, ?, ?, ?, NULL, ?)`,
   ).run(
     parsed.jid,

@@ -18,4 +18,4 @@ Added two new configuration exports for Discord channel support.
 ## Must-keep
 - All existing exports (`ASSISTANT_NAME`, `POLL_INTERVAL`, `TRIGGER_PATTERN`, etc.)
 - The `readEnvFile` pattern — ALL config read from `.env` must go through this function
-- The `escapeRegex` helper and `TRIGGER_PATTERN` construction
+- The `TRIGGER_PATTERN` construction (regex-escaping is inlined)

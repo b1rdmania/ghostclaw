@@ -118,7 +118,6 @@
       font-size: 1rem; flex-shrink: 0;
     }
     .channel-icon.telegram { background: rgba(34,197,94,0.12); color: var(--claw-green); }
-    .channel-icon.whatsapp { background: rgba(245,158,11,0.1); color: var(--warning); }
     .channel-icon.default { background: rgba(160,160,184,0.1); color: var(--text-secondary); }
     .channel-meta { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
     .channel-name { font-size: 0.875rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -423,6 +422,7 @@
         <div class="sidebar-stat"><span>Uptime</span><span id="statUptime" class="sidebar-stat-value">--</span></div>
         <div class="sidebar-stat"><span>Groups</span><span id="statGroups" class="sidebar-stat-value">--</span></div>
         <div class="sidebar-stat"><span>Tasks</span><span id="statTasks" class="sidebar-stat-value">--</span></div>
+        <div class="sidebar-stat" title="Today's API spend / daily cap"><span>Today</span><span id="statSpend" class="sidebar-stat-value">--</span></div>
       </div>
     </nav>
 
@@ -687,12 +687,11 @@
       // Channels
       const list = document.getElementById('channelList');
       list.innerHTML = data.channels.map(ch => {
-        const icon = ch.name.toLowerCase().includes('telegram') ? 'telegram'
-          : ch.name.toLowerCase().includes('whatsapp') ? 'whatsapp' : 'default';
+        const icon = ch.name.toLowerCase().includes('telegram') ? 'telegram' : 'default';
         const dotClass = ch.connected ? 'green' : 'red';
         const statusText = ch.connected ? 'Connected' : 'Disconnected';
         return '<li class="channel-item">' +
-          '<div class="channel-icon ' + icon + '">' + (icon === 'telegram' ? '&#9993;' : icon === 'whatsapp' ? '&#9742;' : '&#9632;') + '</div>' +
+          '<div class="channel-icon ' + icon + '">' + (icon === 'telegram' ? '&#9993;' : '&#9632;') + '</div>' +
           '<div class="channel-meta">' +
             '<span class="channel-name">' + esc(ch.name) + '</span>' +
             '<span class="channel-status"><span class="channel-status-dot ' + dotClass + '"></span>' + statusText + '</span>' +
@@ -1085,8 +1084,21 @@
   // --- Init ---
   updateClock();
   setInterval(updateClock, 30000);
+  async function loadUsage() {
+    try {
+      const d = await api('usage');
+      const spend = '$' + (d.today_usd || 0).toFixed(2);
+      const label = d.cap_usd > 0 ? spend + ' / $' + d.cap_usd.toFixed(0) : spend;
+      document.getElementById('statSpend').textContent = label;
+    } catch (e) {
+      document.getElementById('statSpend').textContent = '--';
+    }
+  }
+
   loadStatus();
+  loadUsage();
   setInterval(loadStatus, 15000);
+  setInterval(loadUsage, 30000);
   loadChats(); // pre-populate send select
   loadTasks(); // populate task cards
   connectSSE();

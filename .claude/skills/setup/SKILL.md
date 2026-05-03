@@ -177,10 +177,8 @@ Tell user to test: send a message in their registered chat. Show: `tail -f logs/
 
 **Service not starting:** Check `logs/ghostclaw.error.log`. Common: wrong Node path (re-run step 10), missing `.env` (step 4), missing auth (step 5).
 
-**Container agent fails ("Claude Code process exited with code 1"):** Ensure the container runtime is running — `open -a Docker` (macOS Docker), `container system start` (Apple Container), or `sudo systemctl start docker` (Linux). Check container logs in `groups/main/logs/container-*.log`.
+**Agent process fails ("Claude Code process exited with code 1"):** Check the agent log in `groups/main/logs/agent-*.log`. Common causes: missing `ANTHROPIC_API_KEY`, stale session state (run `/reset` via Telegram), or a broken MCP server in `settings.json`.
 
 **No response to messages:** Check trigger pattern. Main channel doesn't need prefix. Check DB: `npx tsx setup/index.ts --step verify`. Check `logs/ghostclaw.log`.
-
-**WhatsApp disconnected:** `npm run auth` then rebuild and restart: `npm run build && launchctl kickstart -k gui/$(id -u)/com.ghostclaw` (macOS) or `systemctl --user restart ghostclaw` (Linux).
 
 **Unload service:** macOS: `launchctl unload ~/Library/LaunchAgents/com.ghostclaw.plist` | Linux: `systemctl --user stop ghostclaw`

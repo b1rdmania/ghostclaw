@@ -2,15 +2,13 @@ import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { EventEmitter } from 'events';
 import { PassThrough } from 'stream';
 
-// Sentinel markers must match container-runner.ts
+// Sentinel markers must match agent-spawner.ts
 const OUTPUT_START_MARKER = '---GHOSTCLAW_OUTPUT_START---';
 const OUTPUT_END_MARKER = '---GHOSTCLAW_OUTPUT_END---';
 
 // Mock config
 vi.mock('./config.js', () => ({
-  CONTAINER_IMAGE: 'ghostclaw-agent:latest',
-  CONTAINER_MAX_OUTPUT_SIZE: 10485760,
-  CONTAINER_TIMEOUT: 1800000, // 30min
+  MAX_AGENT_OUTPUT_SIZE: 10485760,
   DATA_DIR: '/tmp/ghostclaw-test-data',
   GROUPS_DIR: '/tmp/ghostclaw-test-groups',
   IDLE_TIMEOUT: 1800000, // 30min
@@ -83,7 +81,7 @@ vi.mock('child_process', async () => {
   };
 });
 
-import { runContainerAgent, ContainerOutput } from './container-runner.js';
+import { spawnAgentProcess, AgentOutput } from './agent-spawner.js';
 import type { RegisteredGroup } from './types.js';
 
 const testGroup: RegisteredGroup = {
@@ -102,13 +100,13 @@ const testInput = {
 
 function emitOutputMarker(
   proc: ReturnType<typeof createFakeProcess>,
-  output: ContainerOutput,
+  output: AgentOutput,
 ) {
   const json = JSON.stringify(output);
   proc.stdout.push(`${OUTPUT_START_MARKER}\n${json}\n${OUTPUT_END_MARKER}\n`);
 }
 
-describe('container-runner timeout behavior', () => {
+describe('agent-spawner timeout behavior', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     fakeProc = createFakeProcess();
@@ -120,7 +118,7 @@ describe('container-runner timeout behavior', () => {
 
   it('absolute timeout after output resolves as error', async () => {
     const onOutput = vi.fn(async () => {});
-    const resultPromise = runContainerAgent(
+    const resultPromise = spawnAgentProcess(
       testGroup,
       testInput,
       () => {},
@@ -156,7 +154,7 @@ describe('container-runner timeout behavior', () => {
 
   it('idle timeout with no stdout resolves as error', async () => {
     const onOutput = vi.fn(async () => {});
-    const resultPromise = runContainerAgent(
+    const resultPromise = spawnAgentProcess(
       testGroup,
       testInput,
       () => {},
@@ -177,7 +175,7 @@ describe('container-runner timeout behavior', () => {
 
   it('stdout activity resets idle timer', async () => {
     const onOutput = vi.fn(async () => {});
-    const resultPromise = runContainerAgent(
+    const resultPromise = spawnAgentProcess(
       testGroup,
       testInput,
       () => {},
@@ -203,7 +201,7 @@ describe('container-runner timeout behavior', () => {
 
   it('normal exit after output resolves as success', async () => {
     const onOutput = vi.fn(async () => {});
-    const resultPromise = runContainerAgent(
+    const resultPromise = spawnAgentProcess(
       testGroup,
       testInput,
       () => {},

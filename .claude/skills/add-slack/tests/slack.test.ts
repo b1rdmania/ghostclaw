@@ -115,7 +115,6 @@ describe('slack skill package', () => {
     expect(content).toContain('export const ASSISTANT_NAME');
     expect(content).toContain('export const POLL_INTERVAL');
     expect(content).toContain('export const TRIGGER_PATTERN');
-    expect(content).toContain('export const CONTAINER_IMAGE');
     expect(content).toContain('export const DATA_DIR');
     expect(content).toContain('export const TIMEZONE');
 

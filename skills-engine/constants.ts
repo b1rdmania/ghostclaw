@@ -10,7 +10,8 @@ export const SKILLS_SCHEMA_VERSION = '0.1.0';
 // Add new entries here when new root-level directories/files need tracking.
 export const BASE_INCLUDES = [
   'src/',
+  'agent-runner/',
+  'public/',
   'package.json',
   '.env.example',
-  'container/',
 ];

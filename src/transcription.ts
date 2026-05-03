@@ -1,10 +1,5 @@
-import { downloadMediaMessage } from '@whiskeysockets/baileys';
-import { WAMessage, WASocket } from '@whiskeysockets/baileys';
-
 import { readEnvFile } from './env.js';
 import { logger } from './logger.js';
-
-const FALLBACK_MESSAGE = '[Voice Message - transcription unavailable]';
 
 export async function transcribeBuffer(
   audioBuffer: Buffer,
@@ -65,45 +60,6 @@ async function transcribeWithElevenLabs(
     logger.error({ err }, 'ElevenLabs STT failed');
     return null;
   }
-}
-
-export async function transcribeAudioMessage(
-  msg: WAMessage,
-  sock: WASocket,
-): Promise<string | null> {
-  try {
-    const buffer = (await downloadMediaMessage(
-      msg,
-      'buffer',
-      {},
-      {
-        logger: console as any,
-        reuploadRequest: sock.updateMediaMessage,
-      },
-    )) as Buffer;
-
-    if (!buffer || buffer.length === 0) {
-      logger.error('Failed to download audio message');
-      return FALLBACK_MESSAGE;
-    }
-
-    logger.info({ bytes: buffer.length }, 'Downloaded audio message');
-
-    const transcript = await transcribeWithElevenLabs(buffer);
-
-    if (!transcript) {
-      return FALLBACK_MESSAGE;
-    }
-
-    return transcript.trim();
-  } catch (err) {
-    logger.error({ err }, 'Transcription error');
-    return FALLBACK_MESSAGE;
-  }
-}
-
-export function isVoiceMessage(msg: WAMessage): boolean {
-  return msg.message?.audioMessage?.ptt === true;
 }
 
 /**

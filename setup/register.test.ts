@@ -17,7 +17,7 @@ function createTestDb(): Database.Database {
     folder TEXT NOT NULL UNIQUE,
     trigger_pattern TEXT NOT NULL,
     added_at TEXT NOT NULL,
-    container_config TEXT,
+    extra_dirs TEXT,
     requires_trigger INTEGER DEFAULT 1
   )`);
   return db;
@@ -33,7 +33,7 @@ describe('parameterized SQL registration', () => {
   it('registers a group with parameterized query', () => {
     db.prepare(
       `INSERT OR REPLACE INTO registered_groups
-       (jid, name, folder, trigger_pattern, added_at, container_config, requires_trigger)
+       (jid, name, folder, trigger_pattern, added_at, extra_dirs, requires_trigger)
        VALUES (?, ?, ?, ?, ?, NULL, ?)`,
     ).run(
       '123@g.us',
@@ -66,7 +66,7 @@ describe('parameterized SQL registration', () => {
 
     db.prepare(
       `INSERT OR REPLACE INTO registered_groups
-       (jid, name, folder, trigger_pattern, added_at, container_config, requires_trigger)
+       (jid, name, folder, trigger_pattern, added_at, extra_dirs, requires_trigger)
        VALUES (?, ?, ?, ?, ?, NULL, ?)`,
     ).run(
       '456@g.us',
@@ -91,7 +91,7 @@ describe('parameterized SQL registration', () => {
 
     db.prepare(
       `INSERT OR REPLACE INTO registered_groups
-       (jid, name, folder, trigger_pattern, added_at, container_config, requires_trigger)
+       (jid, name, folder, trigger_pattern, added_at, extra_dirs, requires_trigger)
        VALUES (?, ?, ?, ?, ?, NULL, ?)`,
     ).run(maliciousJid, 'Evil', 'evil', '@Andy', '2024-01-01T00:00:00.000Z', 1);
 
@@ -112,7 +112,7 @@ describe('parameterized SQL registration', () => {
   it('handles requiresTrigger=false', () => {
     db.prepare(
       `INSERT OR REPLACE INTO registered_groups
-       (jid, name, folder, trigger_pattern, added_at, container_config, requires_trigger)
+       (jid, name, folder, trigger_pattern, added_at, extra_dirs, requires_trigger)
        VALUES (?, ?, ?, ?, ?, NULL, ?)`,
     ).run(
       '789@s.whatsapp.net',
@@ -133,7 +133,7 @@ describe('parameterized SQL registration', () => {
   it('upserts on conflict', () => {
     const stmt = db.prepare(
       `INSERT OR REPLACE INTO registered_groups
-       (jid, name, folder, trigger_pattern, added_at, container_config, requires_trigger)
+       (jid, name, folder, trigger_pattern, added_at, extra_dirs, requires_trigger)
        VALUES (?, ?, ?, ?, ?, NULL, ?)`,
     );
 

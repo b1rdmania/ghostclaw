@@ -12,8 +12,10 @@ import {
   createTask,
   updateTask,
   deleteTask,
+  getTodayUsageSummary,
+  getTodaySpendBySource,
 } from './db.js';
-import { DATA_DIR, GROUPS_DIR } from './config.js';
+import { DATA_DIR, GROUPS_DIR, getDailyBudgetUsd } from './config.js';
 import { dashboardEvents, DashboardEvent } from './dashboard-events.js';
 import { logger } from './logger.js';
 import { readEnvFile } from './env.js';
@@ -135,11 +137,7 @@ export function startDashboard(): void {
     try {
       // Serve dashboard HTML
       if (pathname === '/' && method === 'GET') {
-        const htmlPath = path.join(
-          process.cwd(),
-          'container',
-          'dashboard.html',
-        );
+        const htmlPath = path.join(process.cwd(), 'public', 'dashboard.html');
         if (fs.existsSync(htmlPath)) {
           res.writeHead(200, { 'Content-Type': 'text/html' });
           res.end(fs.readFileSync(htmlPath));
@@ -181,6 +179,23 @@ export function startDashboard(): void {
             groups: Object.keys(groups).length,
             activeTasks: tasks.filter((t) => t.status === 'active').length,
             totalTasks: tasks.length,
+          });
+          return;
+        }
+
+        // GET /api/usage — today's spend + cap + breakdown by source
+        if (route.base === 'usage' && method === 'GET') {
+          const summary = getTodayUsageSummary();
+          const sources = getTodaySpendBySource();
+          const cap = getDailyBudgetUsd();
+          json(res, {
+            today_usd: summary.today_usd,
+            cap_usd: cap,
+            today_events: summary.today_events,
+            today_input_tokens: summary.today_input_tokens,
+            today_output_tokens: summary.today_output_tokens,
+            today_cache_read_tokens: summary.today_cache_read_tokens,
+            sources,
           });
           return;
         }

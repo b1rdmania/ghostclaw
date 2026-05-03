@@ -2,7 +2,7 @@ import { ChildProcess } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 
-import { DATA_DIR, MAX_CONCURRENT_CONTAINERS } from './config.js';
+import { DATA_DIR, MAX_CONCURRENT_AGENTS } from './config.js';
 import { logger } from './logger.js';
 
 interface QueuedTask {
@@ -17,11 +17,11 @@ const BASE_RETRY_MS = 5000;
 interface GroupState {
   active: boolean;
   idleWaiting: boolean;
-  isTaskContainer: boolean;
+  isTaskProcess: boolean;
   pendingMessages: boolean;
   pendingTasks: QueuedTask[];
   process: ChildProcess | null;
-  containerName: string | null;
+  processName: string | null;
   groupFolder: string | null;
   retryCount: number;
 }
@@ -41,11 +41,11 @@ export class GroupQueue {
       state = {
         active: false,
         idleWaiting: false,
-        isTaskContainer: false,
+        isTaskProcess: false,
         pendingMessages: false,
         pendingTasks: [],
         process: null,
-        containerName: null,
+        processName: null,
         groupFolder: null,
         retryCount: 0,
       };
@@ -68,22 +68,22 @@ export class GroupQueue {
     const state = this.getGroup(groupJid);
 
     if (state.active) {
-      if (state.isTaskContainer && state.idleWaiting) {
+      if (state.isTaskProcess && state.idleWaiting) {
         logger.info(
           { groupJid },
-          'Preempting idle task container for incoming message',
+          'Preempting idle task process for incoming message',
         );
         this.closeStdin(groupJid);
       }
       state.pendingMessages = true;
-      if (state.isTaskContainer && this.onMessageQueuedFn) {
+      if (state.isTaskProcess && this.onMessageQueuedFn) {
         this.onMessageQueuedFn(groupJid);
       }
-      logger.debug({ groupJid }, 'Container active, message queued');
+      logger.debug({ groupJid }, 'Agent process active, message queued');
       return;
     }
 
-    if (this.activeCount >= MAX_CONCURRENT_CONTAINERS) {
+    if (this.activeCount >= MAX_CONCURRENT_AGENTS) {
       state.pendingMessages = true;
       if (!this.waitingGroups.includes(groupJid)) {
         this.waitingGroups.push(groupJid);
@@ -115,11 +115,11 @@ export class GroupQueue {
       if (state.idleWaiting) {
         this.closeStdin(groupJid);
       }
-      logger.debug({ groupJid, taskId }, 'Container active, task queued');
+      logger.debug({ groupJid, taskId }, 'Agent process active, task queued');
       return;
     }
 
-    if (this.activeCount >= MAX_CONCURRENT_CONTAINERS) {
+    if (this.activeCount >= MAX_CONCURRENT_AGENTS) {
       state.pendingTasks.push({ id: taskId, groupJid, fn });
       if (!this.waitingGroups.includes(groupJid)) {
         this.waitingGroups.push(groupJid);
@@ -139,12 +139,12 @@ export class GroupQueue {
   registerProcess(
     groupJid: string,
     proc: ChildProcess,
-    containerName: string,
+    processName: string,
     groupFolder?: string,
   ): void {
     const state = this.getGroup(groupJid);
     state.process = proc;
-    state.containerName = containerName;
+    state.processName = processName;
     if (groupFolder) state.groupFolder = groupFolder;
   }
 
@@ -158,7 +158,7 @@ export class GroupQueue {
 
   sendMessage(groupJid: string, text: string): boolean {
     const state = this.getGroup(groupJid);
-    if (!state.active || !state.groupFolder || state.isTaskContainer)
+    if (!state.active || !state.groupFolder || state.isTaskProcess)
       return false;
     state.idleWaiting = false;
 
@@ -234,13 +234,13 @@ export class GroupQueue {
     const state = this.getGroup(groupJid);
     state.active = true;
     state.idleWaiting = false;
-    state.isTaskContainer = false;
+    state.isTaskProcess = false;
     state.pendingMessages = false;
     this.activeCount++;
 
     logger.debug(
       { groupJid, reason, activeCount: this.activeCount },
-      'Starting container for group',
+      'Starting agent process for group',
     );
 
     try {
@@ -258,7 +258,7 @@ export class GroupQueue {
     } finally {
       state.active = false;
       state.process = null;
-      state.containerName = null;
+      state.processName = null;
       state.groupFolder = null;
       this.activeCount--;
       this.drainGroup(groupJid);
@@ -269,7 +269,7 @@ export class GroupQueue {
     const state = this.getGroup(groupJid);
     state.active = true;
     state.idleWaiting = false;
-    state.isTaskContainer = true;
+    state.isTaskProcess = true;
     this.activeCount++;
 
     logger.debug(
@@ -283,9 +283,9 @@ export class GroupQueue {
       logger.error({ groupJid, taskId: task.id, err }, 'Error running task');
     } finally {
       state.active = false;
-      state.isTaskContainer = false;
+      state.isTaskProcess = false;
       state.process = null;
-      state.containerName = null;
+      state.processName = null;
       state.groupFolder = null;
       this.activeCount--;
       this.drainGroup(groupJid);
@@ -386,7 +386,7 @@ export class GroupQueue {
   private drainWaiting(): void {
     while (
       this.waitingGroups.length > 0 &&
-      this.activeCount < MAX_CONCURRENT_CONTAINERS
+      this.activeCount < MAX_CONCURRENT_AGENTS
     ) {
       const nextJid = this.waitingGroups.shift()!;
       const state = this.getGroup(nextJid);
@@ -413,16 +413,16 @@ export class GroupQueue {
   async shutdown(_gracePeriodMs: number): Promise<void> {
     this.shuttingDown = true;
 
-    const activeContainers: string[] = [];
+    const activeProcesses: string[] = [];
     for (const [jid, state] of this.groups) {
-      if (state.process && !state.process.killed && state.containerName) {
-        activeContainers.push(state.containerName);
+      if (state.process && !state.process.killed && state.processName) {
+        activeProcesses.push(state.processName);
       }
     }
 
     logger.info(
-      { activeCount: this.activeCount, detachedContainers: activeContainers },
-      'GroupQueue shutting down (containers detached, not killed)',
+      { activeCount: this.activeCount, detachedProcesses: activeProcesses },
+      'GroupQueue shutting down (agent processes detached, not killed)',
     );
   }
 }

@@ -28,7 +28,7 @@ describe('registered groups DB query', () => {
       folder TEXT NOT NULL UNIQUE,
       trigger_pattern TEXT NOT NULL,
       added_at TEXT NOT NULL,
-      container_config TEXT,
+      extra_dirs TEXT,
       requires_trigger INTEGER DEFAULT 1
     )`);
   });
@@ -76,22 +76,19 @@ describe('credentials detection', () => {
   it('detects ANTHROPIC_API_KEY in env content', () => {
     const content =
       'SOME_KEY=value\nANTHROPIC_API_KEY=sk-ant-test123\nOTHER=foo';
-    const hasCredentials =
-      /^(CLAUDE_CODE_OAUTH_TOKEN|ANTHROPIC_API_KEY)=/m.test(content);
-    expect(hasCredentials).toBe(true);
-  });
-
-  it('detects CLAUDE_CODE_OAUTH_TOKEN in env content', () => {
-    const content = 'CLAUDE_CODE_OAUTH_TOKEN=token123';
-    const hasCredentials =
-      /^(CLAUDE_CODE_OAUTH_TOKEN|ANTHROPIC_API_KEY)=/m.test(content);
+    const hasCredentials = /^ANTHROPIC_API_KEY=.+/m.test(content);
     expect(hasCredentials).toBe(true);
   });
 
   it('returns false when no credentials', () => {
     const content = 'ASSISTANT_NAME="Andy"\nOTHER=foo';
-    const hasCredentials =
-      /^(CLAUDE_CODE_OAUTH_TOKEN|ANTHROPIC_API_KEY)=/m.test(content);
+    const hasCredentials = /^ANTHROPIC_API_KEY=.+/m.test(content);
+    expect(hasCredentials).toBe(false);
+  });
+
+  it('returns false for empty ANTHROPIC_API_KEY', () => {
+    const content = 'ANTHROPIC_API_KEY=\nOTHER=foo';
+    const hasCredentials = /^ANTHROPIC_API_KEY=.+/m.test(content);
     expect(hasCredentials).toBe(false);
   });
 });
@@ -104,18 +101,3 @@ describe('Docker detection logic', () => {
   });
 });
 
-describe('WhatsApp auth detection', () => {
-  it('detects non-empty auth directory logic', () => {
-    // Simulate the check: directory exists and has files
-    const hasAuth = (authDir: string) => {
-      try {
-        return fs.existsSync(authDir) && fs.readdirSync(authDir).length > 0;
-      } catch {
-        return false;
-      }
-    };
-
-    // Non-existent directory
-    expect(hasAuth('/tmp/nonexistent_auth_dir_xyz')).toBe(false);
-  });
-});

@@ -168,7 +168,7 @@ export async function sendPoolMessage(
 
 ### Step 3: Add sender Parameter to MCP Tool
 
-Read `container/agent-runner/src/ipc-mcp-stdio.ts` and update the `send_message` tool to accept an optional `sender` parameter:
+Read `agent-runner/src/ipc-mcp-stdio.ts` and update the `send_message` tool to accept an optional `sender` parameter:
 
 Change the tool's schema from:
 ```typescript
@@ -378,7 +378,7 @@ To remove Agent Swarm support while keeping basic Telegram:
 2. Remove pool code from `src/telegram.ts` (`poolApis`, `senderBotMap`, `initBotPool`, `sendPoolMessage`)
 3. Remove pool routing from IPC handler in `src/index.ts` (revert to plain `sendMessage`)
 4. Remove `initBotPool` call from `main()`
-5. Remove `sender` param from MCP tool in `container/agent-runner/src/ipc-mcp-stdio.ts`
+5. Remove `sender` param from MCP tool in `agent-runner/src/ipc-mcp-stdio.ts`
 6. Remove Agent Teams section from group CLAUDE.md files
 7. Remove `TELEGRAM_BOT_POOL` from `.env`, `data/env/env`, and launchd plist/systemd unit
 8. Rebuild: `npm run build && launchctl unload ~/Library/LaunchAgents/com.ghostclaw.plist && launchctl load ~/Library/LaunchAgents/com.ghostclaw.plist` (macOS) or `npm run build && systemctl --user restart ghostclaw` (Linux)

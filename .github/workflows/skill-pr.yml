@@ -24,7 +24,7 @@ jobs:
             | grep '^\\.claude/skills/' || true)
           CHANGED=$(git diff --name-only origin/main...HEAD)
           SOURCE=$(echo "$CHANGED" \
-            | grep -E '^src/|^container/|^package\.json|^package-lock\.json' || true)
+            | grep -E '^src/|^agent-runner/|^package\.json|^package-lock\.json' || true)
 
           if [ -n "$ADDED_SKILLS" ] && [ -n "$SOURCE" ]; then
             echo "::error::PRs that add new skills should not modify source files."

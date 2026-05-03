@@ -1,19 +1,19 @@
 import { Bot, InputFile } from 'grammy';
 import path from 'path';
 import fs from 'fs';
-import { execSync } from 'child_process';
 
 import { ASSISTANT_NAME, TRIGGER_PATTERN } from '../config.js';
 import { logger } from '../logger.js';
 import { signalNewMessage } from '../message-signal.js';
 import { transcribeBuffer, textToSpeech } from '../transcription.js';
-import { markdownToTelegramHtml, escapeXml } from '../router.js';
+import { markdownToTelegramHtml } from '../router.js';
 import {
   Channel,
   OnChatMetadata,
   OnInboundMessage,
   RegisteredGroup,
 } from '../types.js';
+import { registerCommands } from './telegram-commands.js';
 
 export interface TelegramChannelOpts {
   onMessage: OnInboundMessage;
@@ -38,222 +38,7 @@ export class TelegramChannel implements Channel {
 
   async connect(): Promise<void> {
     this.bot = new Bot(this.botToken);
-
-    // Command to get chat ID (useful for registration)
-    this.bot.command('chatid', (ctx) => {
-      const chatId = ctx.chat.id;
-      const chatType = ctx.chat.type;
-      const chatName =
-        chatType === 'private'
-          ? ctx.from?.first_name || 'Private'
-          : (ctx.chat as any).title || 'Unknown';
-
-      ctx.reply(
-        `Chat ID: \`tg:${chatId}\`\nName: ${chatName}\nType: ${chatType}`,
-        { parse_mode: 'Markdown' },
-      );
-    });
-
-    // Command to check bot status
-    this.bot.command('ping', (ctx) => {
-      ctx.reply(`${ASSISTANT_NAME} is online.`);
-    });
-
-    // Full reset: kill all agents, clear tasks, wipe sessions, restart
-    this.bot.command('reset', async (ctx) => {
-      const chatJid = `tg:${ctx.chat.id}`;
-      const group = this.opts.registeredGroups()[chatJid];
-      if (!group) {
-        ctx.reply('Not a registered chat.');
-        return;
-      }
-      await ctx.reply('Reset in progress...');
-      try {
-        const report = await this.opts.onReset?.(chatJid);
-        await ctx.reply(report || 'Reset complete.');
-        await ctx.reply('Restarting — back in a moment.');
-        setTimeout(() => process.exit(0), 500);
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        await ctx.reply(`Reset failed: ${msg.slice(0, 500)}`);
-      }
-    });
-
-    // Command to pull latest code and restart
-    this.bot.command('update', async (ctx) => {
-      const chatJid = `tg:${ctx.chat.id}`;
-      const group = this.opts.registeredGroups()[chatJid];
-      if (!group) {
-        ctx.reply('Not a registered chat.');
-        return;
-      }
-
-      await ctx.reply('Pulling latest code...');
-      const cwd = process.cwd();
-
-      try {
-        execSync('git fetch origin', { cwd, encoding: 'utf-8' });
-        const rebaseOut = execSync('git rebase origin/main', {
-          cwd,
-          encoding: 'utf-8',
-        });
-        await ctx.reply(`Updated: ${rebaseOut.trim()}`);
-
-        await ctx.reply('Building...');
-        execSync('npm run build', { cwd, encoding: 'utf-8', timeout: 120_000 });
-
-        await ctx.reply('Done. Restarting — back in a moment.');
-        setTimeout(() => process.exit(0), 500);
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        await ctx.reply(`Update failed:\n${msg.slice(0, 500)}`);
-        logger.error({ err }, '/update command failed');
-      }
-    });
-
-    const AVAILABLE_MODELS = [
-      {
-        alias: 'sonnet',
-        id: 'claude-sonnet-4-5-20250929',
-        desc: 'Fast + capable (default)',
-      },
-      {
-        alias: 'opus',
-        id: 'claude-opus-4-5-20251101',
-        desc: 'Most capable, slower',
-      },
-      {
-        alias: 'haiku',
-        id: 'claude-haiku-4-5-20251001',
-        desc: 'Fastest, cheapest',
-      },
-    ];
-
-    this.bot.command('model', async (ctx) => {
-      const chatJid = `tg:${ctx.chat.id}`;
-      const group = this.opts.registeredGroups()[chatJid];
-      if (!group) {
-        ctx.reply('Not a registered chat.');
-        return;
-      }
-
-      const arg = ctx.match?.trim().toLowerCase();
-      const currentId = process.env.GHOSTCLAW_MODEL || AVAILABLE_MODELS[0].id;
-      const currentModel = AVAILABLE_MODELS.find(
-        (m) => m.id === currentId || m.alias === currentId,
-      );
-      const currentLabel = currentModel?.alias || currentId;
-
-      if (!arg) {
-        const lines = AVAILABLE_MODELS.map((m) => {
-          const active =
-            m.id === currentId || m.alias === currentId ? ' ← current' : '';
-          return `• <code>/model ${m.alias}</code> — ${m.desc}${active}`;
-        });
-        await ctx.reply(
-          `<b>Model: ${escapeXml(currentLabel)}</b>\n\n${lines.join('\n')}`,
-          { parse_mode: 'HTML' },
-        );
-        return;
-      }
-
-      const match = AVAILABLE_MODELS.find((m) => m.alias === arg);
-      if (!match) {
-        await ctx.reply(
-          `Unknown model "${escapeXml(arg)}". Use: ${AVAILABLE_MODELS.map((m) => m.alias).join(', ')}`,
-        );
-        return;
-      }
-
-      process.env.GHOSTCLAW_MODEL = match.id;
-
-      // Persist to .env so it survives restarts
-      const envPath = path.join(process.cwd(), '.env');
-      try {
-        let envContent = fs.existsSync(envPath)
-          ? fs.readFileSync(envPath, 'utf-8')
-          : '';
-        if (envContent.match(/^GHOSTCLAW_MODEL=.*/m)) {
-          envContent = envContent.replace(
-            /^GHOSTCLAW_MODEL=.*/m,
-            `GHOSTCLAW_MODEL=${match.id}`,
-          );
-        } else {
-          envContent = envContent.trimEnd() + `\nGHOSTCLAW_MODEL=${match.id}\n`;
-        }
-        fs.writeFileSync(envPath, envContent);
-      } catch (err) {
-        logger.warn({ err }, 'Failed to persist model to .env');
-      }
-
-      // Reset the session so the new model takes effect immediately
-      this.opts.onSessionReset?.(chatJid);
-
-      await ctx.reply(
-        `Model switched to <b>${escapeXml(match.alias)}</b>. Session reset — next message uses the new model.`,
-        { parse_mode: 'HTML' },
-      );
-    });
-
-    // Command to show active agents, queue depth, and uptime
-    this.bot.command('status', (ctx) => {
-      const chatJid = `tg:${ctx.chat.id}`;
-      const group = this.opts.registeredGroups()[chatJid];
-      if (!group) {
-        ctx.reply('Not a registered chat.');
-        return;
-      }
-      const text = this.opts.onGetStatus?.() ?? 'Status unavailable.';
-      ctx.reply(text, { parse_mode: 'HTML' });
-    });
-
-    // Command to list installed skills
-    this.bot.command('skills', async (ctx) => {
-      const chatJid = `tg:${ctx.chat.id}`;
-      const group = this.opts.registeredGroups()[chatJid];
-      if (!group) {
-        await ctx.reply('Not a registered chat.');
-        return;
-      }
-      const skillsDir = path.join(process.cwd(), '.claude', 'skills');
-      if (!fs.existsSync(skillsDir)) {
-        await ctx.reply('No skills directory found.');
-        return;
-      }
-      const lines: string[] = ['<b>Installed skills:</b>'];
-      const dirs = fs.readdirSync(skillsDir).sort();
-      for (const dir of dirs) {
-        const stat = fs.statSync(path.join(skillsDir, dir));
-        if (!stat.isDirectory()) continue;
-        const skillMd = path.join(skillsDir, dir, 'SKILL.md');
-        if (!fs.existsSync(skillMd)) continue;
-        const content = fs.readFileSync(skillMd, 'utf-8');
-        const descMatch = content.match(/^description:\s*(.+)$/m);
-        const desc = descMatch ? descMatch[1].trim() : '';
-        const safeName = escapeXml(dir);
-        const safeDesc = desc ? escapeXml(desc.slice(0, 80)) : '';
-        lines.push(
-          `• <code>/${safeName}</code>${safeDesc ? ` — ${safeDesc}` : ''}`,
-        );
-      }
-      const text = lines.length > 1 ? lines.join('\n') : 'No skills installed.';
-      // Chunk if needed — Telegram 4096 char limit
-      const MAX = 4096;
-      if (text.length <= MAX) {
-        await ctx.reply(text, { parse_mode: 'HTML' });
-      } else {
-        let chunk = '';
-        for (const line of lines) {
-          if (chunk.length + line.length + 1 > MAX) {
-            await ctx.reply(chunk, { parse_mode: 'HTML' });
-            chunk = line;
-          } else {
-            chunk = chunk ? `${chunk}\n${line}` : line;
-          }
-        }
-        if (chunk) await ctx.reply(chunk, { parse_mode: 'HTML' });
-      }
-    });
+    registerCommands(this.bot, this.opts);
 
     this.bot.on('message:text', async (ctx) => {
       // Skip commands

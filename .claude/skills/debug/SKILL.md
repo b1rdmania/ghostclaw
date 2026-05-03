@@ -12,7 +12,7 @@ This guide covers debugging the agent execution system.
 ```
 Host (macOS/Linux)
 ───────────────────────────────────────────────
-src/index.ts                   container/agent-runner/
+src/index.ts                   agent-runner/
     │                               │
     │ spawns child process          │ runs Claude Agent SDK
     │ with env vars                 │ with MCP servers
@@ -32,7 +32,7 @@ src/index.ts                   container/agent-runner/
 |-----|----------|---------|
 | **Main app logs** | `logs/ghostclaw.log` | Routing, agent spawning, scheduling |
 | **Main app errors** | `logs/ghostclaw.error.log` | Host-side errors |
-| **Agent run logs** | `groups/{folder}/logs/container-*.log` | Per-run: input, stderr, stdout |
+| **Agent run logs** | `groups/{folder}/logs/agent-*.log` | Per-run: input, stderr, stdout |
 | **Claude sessions** | `data/sessions/{folder}/.claude/projects/` | Claude Code session history |
 
 ## Enabling Debug Logging
@@ -59,7 +59,7 @@ Debug level shows:
 
 ### 1. "Claude Code process exited with code 1"
 
-**Check the agent log file** in `groups/{folder}/logs/container-*.log`
+**Check the agent log file** in `groups/{folder}/logs/agent-*.log`
 
 Common causes:
 
@@ -109,7 +109,7 @@ grep "Session initialized" logs/ghostclaw.log | tail -5
 
 If an MCP server fails to start, the agent may exit. Check agent logs for MCP initialization errors.
 
-MCP servers are configured in `data/sessions/{folder}/.claude/settings.json`. Global servers are synced automatically from `container-runner.ts:buildGlobalMcpServers()`.
+MCP servers are configured in `data/sessions/{folder}/.claude/settings.json`. Global servers are synced automatically from `agent-spawner.ts:buildGlobalMcpServers()`.
 
 ### 5. Agent Timeout
 
@@ -144,7 +144,7 @@ query({
 npm run build
 
 # Rebuild agent runner
-cd container/agent-runner && npm run build && cd ../..
+cd agent-runner && npm run build && cd ../..
 
 # Restart service
 launchctl kickstart -k gui/$(id -u)/com.ghostclaw  # macOS
@@ -209,7 +209,7 @@ echo -e "\n3. Built?"
 [ -d dist ] && echo "OK" || echo "MISSING - run npm run build"
 
 echo -e "\n4. Agent runner built?"
-[ -d container/agent-runner/dist ] && echo "OK" || echo "MISSING - run cd container/agent-runner && npm run build"
+[ -d agent-runner/dist ] && echo "OK" || echo "MISSING - run cd agent-runner && npm run build"
 
 echo -e "\n5. Groups directory?"
 ls -la groups/ 2>/dev/null || echo "MISSING - run /setup-ghostclaw"
@@ -218,7 +218,7 @@ echo -e "\n6. Service running?"
 launchctl list 2>/dev/null | grep ghostclaw && echo "OK" || echo "NOT RUNNING"
 
 echo -e "\n7. Recent agent logs?"
-ls -t groups/*/logs/container-*.log 2>/dev/null | head -3 || echo "No agent logs yet"
+ls -t groups/*/logs/agent-*.log 2>/dev/null | head -3 || echo "No agent logs yet"
 
 echo -e "\n8. Session continuity working?"
 SESSIONS=$(grep "Session initialized" logs/ghostclaw.log 2>/dev/null | tail -5 | awk '{print $NF}' | sort -u | wc -l)

@@ -53,7 +53,7 @@ GMAIL_MCP_ENABLED=1
 ### 3. Rebuild and restart
 
 ```bash
-cd container/agent-runner && npx tsc
+cd agent-runner && npx tsc
 launchctl kickstart -k gui/$(id -u)/com.ghostclaw  # macOS
 # systemctl --user restart ghostclaw               # Linux
 ```
@@ -79,7 +79,7 @@ With email enabled, the agent has these MCP tools:
 
 ## How it works
 
-The agent runner at `container/agent-runner/src/index.ts` conditionally adds the Gmail MCP server when `GMAIL_MCP_ENABLED=1` is set. The server runs as a child process of the agent, inheriting HOME for OAuth credential discovery.
+The agent runner at `agent-runner/src/index.ts` conditionally adds the Gmail MCP server when `GMAIL_MCP_ENABLED=1` is set. The server runs as a child process of the agent, inheriting HOME for OAuth credential discovery.
 
 ## Disabling
 
@@ -87,4 +87,4 @@ Remove `GMAIL_MCP_ENABLED=1` from `.env` and restart. The agent won't have email
 
 ## Using other email providers
 
-To swap Gmail for another provider, edit `container/agent-runner/src/index.ts` and change the MCP server command in the `gmail` config block. The rest of the wiring (conditional enable via env var, tool permissions) stays the same.
+To swap Gmail for another provider, edit `agent-runner/src/index.ts` and change the MCP server command in the `gmail` config block. The rest of the wiring (conditional enable via env var, tool permissions) stays the same.

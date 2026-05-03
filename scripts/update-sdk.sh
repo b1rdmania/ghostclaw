@@ -4,7 +4,7 @@
 
 set -e
 
-AGENT_RUNNER_DIR="/Users/ziggy/nanoclaw/container/agent-runner"
+AGENT_RUNNER_DIR="/Users/ziggy/nanoclaw/agent-runner"
 NANOCLAW_DIR="/Users/ziggy/nanoclaw"
 LOG_PREFIX="[sdk-update]"
 

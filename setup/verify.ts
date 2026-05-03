@@ -77,19 +77,12 @@ export async function run(_args: string[]): Promise<void> {
   const envFile = path.join(projectRoot, '.env');
   if (fs.existsSync(envFile)) {
     const envContent = fs.readFileSync(envFile, 'utf-8');
-    if (/^(CLAUDE_CODE_OAUTH_TOKEN|ANTHROPIC_API_KEY)=/m.test(envContent)) {
+    if (/^ANTHROPIC_API_KEY=.+/m.test(envContent)) {
       credentials = 'configured';
     }
   }
 
-  // 4. Check WhatsApp auth
-  let whatsappAuth = 'not_found';
-  const authDir = path.join(projectRoot, 'store', 'auth');
-  if (fs.existsSync(authDir) && fs.readdirSync(authDir).length > 0) {
-    whatsappAuth = 'authenticated';
-  }
-
-  // 5. Check registered groups (using better-sqlite3, not sqlite3 CLI)
+  // 4. Check registered groups (using better-sqlite3, not sqlite3 CLI)
   let registeredGroups = 0;
   const dbPath = path.join(STORE_DIR, 'messages.db');
   if (fs.existsSync(dbPath)) {
@@ -109,7 +102,6 @@ export async function run(_args: string[]): Promise<void> {
   const status =
     service === 'running' &&
     credentials !== 'missing' &&
-    whatsappAuth !== 'not_found' &&
     registeredGroups > 0
       ? 'success'
       : 'failed';
@@ -119,7 +111,6 @@ export async function run(_args: string[]): Promise<void> {
   emitStatus('VERIFY', {
     SERVICE: service,
     CREDENTIALS: credentials,
-    WHATSAPP_AUTH: whatsappAuth,
     REGISTERED_GROUPS: registeredGroups,
     STATUS: status,
     LOG: 'logs/setup.log',

@@ -7,6 +7,7 @@ const { version: APP_VERSION } = require('../package.json');
 
 import {
   ASSISTANT_NAME,
+  getDailyBudgetUsd,
   DATA_DIR,
   GROUPS_DIR,
   IDLE_TIMEOUT,
@@ -14,22 +15,20 @@ import {
   MAX_MESSAGES_PER_PROMPT,
   POLL_INTERVAL,
   TELEGRAM_BOT_TOKEN,
-  TELEGRAM_ONLY,
   TRIGGER_PATTERN,
 } from './config.js';
 import { waitForMessage } from './message-signal.js';
 import { TelegramChannel } from './channels/telegram.js';
-import { WhatsAppChannel } from './channels/whatsapp.js';
 import { initErrorAlerts, sendErrorAlert } from './error-alerts.js';
-// Fast path mothballed — requires ANTHROPIC_API_KEY, OAuth tokens not supported by raw SDK.
-// To enable: uncomment the import below, then gate calls with isFastPathAvailable().
-// import { tryFastPath, shouldBypassFastPath, isFastPathAvailable } from './fast-path.js';
 import {
-  ContainerOutput,
-  runContainerAgent,
-  writeGroupsSnapshot,
-  writeTasksSnapshot,
-} from './container-runner.js';
+  isFastPathAvailable,
+  shouldBypassFastPath,
+  tryFastPath,
+} from './fast-path.js';
+import { writeGroupsSnapshot } from './agent-spawner.js';
+import { runAgent } from './run-agent.js';
+import { buildStatusReport } from './status-report.js';
+import { runHardReset } from './hard-reset.js';
 import {
   getAllChats,
   getAllRegisteredGroups,
@@ -39,7 +38,9 @@ import {
   getMessagesSince,
   getNewMessages,
   getRouterState,
+  getTodayCostUsd,
   initDatabase,
+  recordUsage,
   setRegisteredGroup,
   deleteSession,
   setRouterState,
@@ -47,6 +48,13 @@ import {
   storeChatMetadata,
   storeMessage,
 } from './db.js';
+import {
+  acquirePidLock,
+  cleanupOrphanedAgents,
+  releasePidLock,
+  trackAgentPid,
+  untrackAgentPid,
+} from './agent-pid-lock.js';
 import { GroupQueue } from './group-queue.js';
 import { resolveGroupFolderPath } from './group-folder.js';
 import { startIpcWatcher } from './ipc.js';
@@ -62,9 +70,6 @@ import { logger } from './logger.js';
 import { startDashboard, setDashboardChannels } from './dashboard.js';
 import { dashboardEvents } from './dashboard-events.js';
 
-// Re-export for backwards compatibility during refactor
-export { escapeXml, formatMessages } from './router.js';
-
 let lastTimestamp = '';
 let sessions: Record<string, string> = {};
 let registeredGroups: Record<string, RegisteredGroup> = {};
@@ -75,7 +80,24 @@ let messageLoopRunning = false;
 const startTime = Date.now();
 const currentTasks: Record<string, string> = {};
 
-let whatsapp: WhatsAppChannel;
+// Budget alert throttle: emit at most one Telegram alert per UTC day when
+// the daily spend cap is hit. Reset by comparing the stored UTC date.
+let lastBudgetAlertDay: string | null = null;
+function notifyBudgetExceeded(): void {
+  const today = new Date().toISOString().slice(0, 10);
+  if (lastBudgetAlertDay === today) return;
+  lastBudgetAlertDay = today;
+  const spend = getTodayCostUsd();
+  sendErrorAlert(
+    new Error(
+      `Daily budget hit: $${spend.toFixed(2)} / $${getDailyBudgetUsd().toFixed(2)}. Agent in fast-path-only mode until UTC midnight.`,
+    ),
+    'budget-cap',
+  ).catch(() => {
+    /* alert failures must not cascade */
+  });
+}
+
 const channels: Channel[] = [];
 const queue = new GroupQueue();
 
@@ -124,7 +146,7 @@ function registerGroup(jid: string, group: RegisteredGroup): void {
   );
 }
 
-export function getAvailableGroups(): import('./container-runner.js').AvailableGroup[] {
+export function getAvailableGroups(): import('./agent-spawner.js').AvailableGroup[] {
   const chats = getAllChats();
   const registeredJids = new Set(Object.keys(registeredGroups));
 
@@ -145,325 +167,342 @@ export function _setRegisteredGroups(
   registeredGroups = groups;
 }
 
-async function processGroupMessages(chatJid: string): Promise<boolean> {
+// --- processGroupMessages pipeline ---
+// One batch of messages arriving from a single chat flows through these
+// stages in order. Each stage reads/writes module-level state as needed and
+// returns a small value the next stage can act on. The top-level function is
+// a ten-line orchestrator; the stages are independently readable.
+
+interface BatchContext {
+  chatJid: string;
+  group: RegisteredGroup;
+  channel: Channel;
+  messages: NewMessage[];
+  prompt: string;
+  previousCursor: string;
+}
+
+interface AgentTurnOutcome {
+  hadError: boolean;
+  outputSentToUser: boolean;
+}
+
+/**
+ * Resolve the group + channel, fetch new messages, enforce trigger filtering,
+ * and advance the message cursor. Returns null when there's nothing to do —
+ * unregistered chat, no channel, no new messages, or a non-main group without
+ * a trigger match in the batch.
+ */
+function prepareBatch(chatJid: string): BatchContext | null {
   const group = registeredGroups[chatJid];
-  if (!group) return true;
+  if (!group) return null;
 
   const channel = findChannel(channels, chatJid);
   if (!channel) {
     console.log(`Warning: no channel owns JID ${chatJid}, skipping messages`);
-    return true;
+    return null;
   }
-
-  const isMainGroup = group.folder === MAIN_GROUP_FOLDER;
 
   const sinceTimestamp =
     lastAgentTimestamp[chatJid] || getLastBotMessageTimestamp(chatJid) || '';
-  const missedMessages = getMessagesSince(
+  const messages = getMessagesSince(
     chatJid,
     sinceTimestamp,
     ASSISTANT_NAME,
     MAX_MESSAGES_PER_PROMPT,
   );
+  if (messages.length === 0) return null;
 
-  if (missedMessages.length === 0) return true;
-
+  const isMainGroup = group.folder === MAIN_GROUP_FOLDER;
   if (!isMainGroup && group.requiresTrigger !== false) {
-    const hasTrigger = missedMessages.some((m) =>
+    const hasTrigger = messages.some((m) =>
       TRIGGER_PATTERN.test(m.content.trim()),
     );
-    if (!hasTrigger) return true;
+    if (!hasTrigger) return null;
   }
 
-  const prompt = formatMessages(missedMessages);
-
-  const hasVoiceMessage = missedMessages.some((m) =>
-    m.content.startsWith('[Voice:'),
-  );
-
   const previousCursor = lastAgentTimestamp[chatJid] || '';
-  lastAgentTimestamp[chatJid] =
-    missedMessages[missedMessages.length - 1].timestamp;
+  lastAgentTimestamp[chatJid] = messages[messages.length - 1].timestamp;
   saveState();
 
+  return {
+    chatJid,
+    group,
+    channel,
+    messages,
+    prompt: formatMessages(messages),
+    previousCursor,
+  };
+}
+
+/**
+ * If the conversation was silent for >1h, clear the stored session so the
+ * next agent run starts fresh. Under API billing, replayed session history
+ * is the single biggest cost driver — don't carry yesterday's context into
+ * today's chat.
+ */
+function maybeResetStaleSession(ctx: BatchContext): void {
+  if (!ctx.previousCursor || !sessions[ctx.group.folder]) return;
+  const gapMs = Date.now() - Date.parse(ctx.previousCursor);
+  if (gapMs <= 60 * 60 * 1000) return;
   logger.info(
-    { group: group.name, messageCount: missedMessages.length },
-    'Processing messages',
+    { group: ctx.group.name, gapMinutes: Math.round(gapMs / 60000) },
+    'Session idle >1h, clearing for fresh start',
   );
+  delete sessions[ctx.group.folder];
+  deleteSession(ctx.group.folder);
+}
 
+/**
+ * Try the cheap Haiku triage path. Records usage whether it handles or
+ * hands off (both cost real tokens). Returns true only when the reply
+ * landed end-to-end — caller should return immediately.
+ */
+async function tryFastPathHandle(ctx: BatchContext): Promise<boolean> {
+  if (!isFastPathAvailable() || shouldBypassFastPath(ctx.prompt)) {
+    return false;
+  }
+  try {
+    const fp = await tryFastPath(ctx.prompt, ctx.group.folder);
+    if (fp.usage) {
+      recordUsage('fast-path', fp.usage, ctx.group.folder, ctx.chatJid);
+    }
+    if (!fp.handled || !fp.answer) return false;
+
+    await ctx.channel.sendMessage(ctx.chatJid, fp.answer, false);
+    await ctx.channel.setTyping?.(ctx.chatJid, false);
+    consecutiveFailures[ctx.chatJid] = 0;
+    delete currentTasks[ctx.chatJid];
+    logger.info(
+      { group: ctx.group.name, cost: fp.usage?.cost_usd },
+      'Fast-path handled message',
+    );
+    return true;
+  } catch (err) {
+    logger.warn(
+      { err, group: ctx.group.name },
+      'Fast-path threw, falling through',
+    );
+    return false;
+  }
+}
+
+/**
+ * When today's spend meets or exceeds `GHOSTCLAW_DAILY_BUDGET_USD`, block
+ * tool-using work until UTC midnight. Fast-path already ran (and may have
+ * handled the message); if we got here, Haiku either declined or isn't
+ * available. Send the canned notice and call it done.
+ */
+async function tryBudgetGate(ctx: BatchContext): Promise<boolean> {
+  const budget = getDailyBudgetUsd();
+  if (budget <= 0 || getTodayCostUsd() < budget) return false;
+
+  await ctx.channel.sendMessage(
+    ctx.chatJid,
+    `⚠️ Daily budget reached ($${getTodayCostUsd().toFixed(2)} of $${budget.toFixed(2)}). Tool-using work is paused until UTC midnight. Simple chat still works.`,
+    false,
+  );
+  await ctx.channel.setTyping?.(ctx.chatJid, false);
+  notifyBudgetExceeded();
+  consecutiveFailures[ctx.chatJid] = 0;
+  delete currentTasks[ctx.chatJid];
+  return true;
+}
+
+/**
+ * Run the full agent for this batch: spawn the child process, stream
+ * partial output back to the channel, keep the typing indicator alive,
+ * and track just enough state for the caller to decide how to react
+ * to an error. Timers are always cleaned up (try/finally) so a thrown
+ * runAgent never leaves the group in a stuck state.
+ */
+async function runFullAgentTurn(ctx: BatchContext): Promise<AgentTurnOutcome> {
+  const TYPING_STALL_MS = 15_000;
   let idleTimer: ReturnType<typeof setTimeout> | null = null;
-
   const resetIdleTimer = () => {
     if (idleTimer) clearTimeout(idleTimer);
     idleTimer = setTimeout(() => {
       logger.debug(
-        { group: group.name },
-        'Idle timeout, closing container stdin',
+        { group: ctx.group.name },
+        'Idle timeout, closing agent stdin',
       );
-      queue.closeStdin(chatJid);
+      queue.closeStdin(ctx.chatJid);
     }, IDLE_TIMEOUT);
   };
 
-  const TYPING_STALL_MS = 15_000;
   let typingActive = true;
   let lastOutputAt = Date.now();
-
   const typingInterval = setInterval(() => {
     if (typingActive && Date.now() - lastOutputAt < TYPING_STALL_MS) {
-      channel.setTyping?.(chatJid, true)?.catch(() => {});
+      ctx.channel.setTyping?.(ctx.chatJid, true)?.catch(() => {});
     } else if (typingActive) {
       typingActive = false;
-      channel.setTyping?.(chatJid, false)?.catch(() => {});
+      ctx.channel.setTyping?.(ctx.chatJid, false)?.catch(() => {});
     }
   }, 4000);
-  await channel.setTyping?.(chatJid, true);
+  await ctx.channel.setTyping?.(ctx.chatJid, true);
 
   let hadError = false;
   let outputSentToUser = false;
-
-  currentTasks[chatJid] = missedMessages[
-    missedMessages.length - 1
+  currentTasks[ctx.chatJid] = ctx.messages[
+    ctx.messages.length - 1
   ].content.slice(0, 120);
-  const output = await runAgent(group, prompt, chatJid, async (result) => {
-    lastOutputAt = Date.now();
-    if (!typingActive) {
-      typingActive = true;
-      channel.setTyping?.(chatJid, true)?.catch(() => {});
-    }
 
-    if (result.result) {
-      const raw =
-        typeof result.result === 'string'
-          ? result.result
-          : JSON.stringify(result.result);
-      const text = raw.replace(/<internal>[\s\S]*?<\/internal>/g, '').trim();
-      logger.info({ group: group.name }, `Agent output: ${raw.slice(0, 200)}`);
-      if (text) {
-        clearInterval(typingInterval);
-        await channel.sendMessage(chatJid, text, false);
-        outputSentToUser = true;
-      }
-      resetIdleTimer();
-    }
-
-    if (result.status === 'success') {
-      queue.notifyIdle(chatJid);
-    }
-
-    if (result.status === 'error') {
-      hadError = true;
-    }
-  });
-
-  clearInterval(typingInterval);
-  await channel.setTyping?.(chatJid, false);
-  if (idleTimer) clearTimeout(idleTimer);
-  delete currentTasks[chatJid];
-
-  if (output === 'error' || hadError) {
-    if (outputSentToUser) {
-      logger.warn(
-        { group: group.name },
-        'Agent error after output was sent, skipping cursor rollback to prevent duplicates',
-      );
-      consecutiveFailures[chatJid] = 0;
-      return true;
-    }
-    consecutiveFailures[chatJid] = (consecutiveFailures[chatJid] || 0) + 1;
-    if (consecutiveFailures[chatJid] >= MAX_CURSOR_ROLLBACKS) {
-      logger.error(
-        { group: group.name, failures: consecutiveFailures[chatJid] },
-        'Too many consecutive failures — advancing cursor to prevent retry spiral. Some messages may be lost.',
-      );
-      consecutiveFailures[chatJid] = 0;
-      // Cursor already advanced (line above previousCursor), don't roll back
-      await channel.sendMessage(
-        chatJid,
-        '⚠️ I had trouble processing some messages and had to skip them. Please resend anything important.',
-      );
-      return true;
-    }
-    lastAgentTimestamp[chatJid] = previousCursor;
-    saveState();
-    logger.warn(
-      { group: group.name, failure: consecutiveFailures[chatJid] },
-      'Agent error, rolled back message cursor for retry',
-    );
-    return false;
-  }
-
-  consecutiveFailures[chatJid] = 0;
-
-  // Post-agent memory write: append a summary to log.md after every successful run
   try {
-    const logFile = path.join(GROUPS_DIR, group.folder, 'memory', 'log.md');
-    if (fs.existsSync(logFile)) {
-      const today = new Date().toISOString().slice(0, 10);
-      const logContent = fs.readFileSync(logFile, 'utf-8');
-      const taskSummary = currentTasks[chatJid] || prompt.slice(0, 120);
-      // Only append if the agent actually sent output (not a no-op)
-      if (outputSentToUser) {
-        const entry = `- [auto] Handled: ${taskSummary.replace(/\n/g, ' ')}`;
-        if (logContent.includes(`## ${today}`)) {
-          // Append under today's header
-          const updated = logContent.replace(
-            `## ${today}`,
-            `## ${today}\n${entry}`,
-          );
-          fs.writeFileSync(logFile, updated);
-        } else {
-          // Add new day header after the separator
-          const updated = logContent.replace(
-            '---\n',
-            `---\n\n## ${today}\n${entry}\n`,
-          );
-          fs.writeFileSync(logFile, updated);
+    const status = await runAgent({
+      group: ctx.group,
+      prompt: ctx.prompt,
+      chatJid: ctx.chatJid,
+      sessions,
+      registeredGroups,
+      queue,
+      getAvailableGroups,
+      onOutput: async (result) => {
+        lastOutputAt = Date.now();
+        if (!typingActive) {
+          typingActive = true;
+          ctx.channel.setTyping?.(ctx.chatJid, true)?.catch(() => {});
         }
-      }
-    }
-  } catch {
-    // Non-critical — don't fail the session over a log write
-  }
 
-  return true;
+        if (result.result) {
+          const raw =
+            typeof result.result === 'string'
+              ? result.result
+              : JSON.stringify(result.result);
+          const text = raw
+            .replace(/<internal>[\s\S]*?<\/internal>/g, '')
+            .trim();
+          logger.info(
+            { group: ctx.group.name },
+            `Agent output: ${raw.slice(0, 200)}`,
+          );
+          if (text) {
+            clearInterval(typingInterval);
+            await ctx.channel.sendMessage(ctx.chatJid, text, false);
+            outputSentToUser = true;
+          }
+          resetIdleTimer();
+        }
+
+        if (result.status === 'success') {
+          queue.notifyIdle(ctx.chatJid);
+        }
+        if (result.status === 'error') {
+          hadError = true;
+        }
+      },
+    });
+
+    return {
+      hadError: hadError || status === 'error',
+      outputSentToUser,
+    };
+  } finally {
+    clearInterval(typingInterval);
+    await ctx.channel.setTyping?.(ctx.chatJid, false);
+    if (idleTimer) clearTimeout(idleTimer);
+    delete currentTasks[ctx.chatJid];
+  }
 }
 
-async function runAgent(
-  group: RegisteredGroup,
-  prompt: string,
-  chatJid: string,
-  onOutput?: (output: ContainerOutput) => Promise<void>,
-): Promise<'success' | 'error'> {
-  const isMain = group.folder === MAIN_GROUP_FOLDER;
-  const sessionId = sessions[group.folder];
-
-  const tasks = getAllTasks();
-  writeTasksSnapshot(
-    group.folder,
-    isMain,
-    tasks.map((t) => ({
-      id: t.id,
-      groupFolder: t.group_folder,
-      prompt: t.prompt,
-      schedule_type: t.schedule_type,
-      schedule_value: t.schedule_value,
-      status: t.status,
-      next_run: t.next_run,
-    })),
+/**
+ * Recover from an agent turn that errored. If output already landed, accept
+ * the partial success (rolling the cursor back would duplicate the reply the
+ * user can already see). Otherwise increment the failure counter: under the
+ * rollback limit → roll cursor back and return false so the queue retries on
+ * the next poll; at the limit → leave the cursor advanced, warn the user,
+ * and stop the retry spiral.
+ */
+async function handleAgentError(
+  ctx: BatchContext,
+  outcome: AgentTurnOutcome,
+): Promise<boolean> {
+  if (outcome.outputSentToUser) {
+    logger.warn(
+      { group: ctx.group.name },
+      'Agent error after output was sent, skipping cursor rollback to prevent duplicates',
+    );
+    consecutiveFailures[ctx.chatJid] = 0;
+    return true;
+  }
+  consecutiveFailures[ctx.chatJid] =
+    (consecutiveFailures[ctx.chatJid] || 0) + 1;
+  if (consecutiveFailures[ctx.chatJid] >= MAX_CURSOR_ROLLBACKS) {
+    logger.error(
+      { group: ctx.group.name, failures: consecutiveFailures[ctx.chatJid] },
+      'Too many consecutive failures — advancing cursor to prevent retry spiral. Some messages may be lost.',
+    );
+    consecutiveFailures[ctx.chatJid] = 0;
+    // Cursor was already advanced by prepareBatch — don't roll it back.
+    await ctx.channel.sendMessage(
+      ctx.chatJid,
+      '⚠️ I had trouble processing some messages and had to skip them. Please resend anything important.',
+    );
+    return true;
+  }
+  lastAgentTimestamp[ctx.chatJid] = ctx.previousCursor;
+  saveState();
+  logger.warn(
+    { group: ctx.group.name, failure: consecutiveFailures[ctx.chatJid] },
+    'Agent error, rolled back message cursor for retry',
   );
+  return false;
+}
 
-  const availableGroups = getAvailableGroups();
-  writeGroupsSnapshot(
-    group.folder,
-    isMain,
-    availableGroups,
-    new Set(Object.keys(registeredGroups)),
-  );
-
-  const wrappedOnOutput = onOutput
-    ? async (output: ContainerOutput) => {
-        if (output.newSessionId) {
-          sessions[group.folder] = output.newSessionId;
-          setSession(group.folder, output.newSessionId);
-        }
-        await onOutput(output);
-      }
-    : undefined;
-
-  // Inject recent files context so agents don't duplicate work
-  let enrichedPrompt = prompt;
+/**
+ * Append `- [auto] Handled: ...` under today's heading in the group's
+ * memory/log.md after a successful turn that actually produced output.
+ * Best-effort — memory logging must never bring down a conversation.
+ */
+function appendMemoryLog(ctx: BatchContext, outcome: AgentTurnOutcome): void {
+  if (!outcome.outputSentToUser) return;
   try {
-    const groupDir = path.join(GROUPS_DIR, group.folder);
-    const cutoff = Date.now() - 20 * 60 * 1000; // 20 minutes
-    const entries = fs.readdirSync(groupDir, { withFileTypes: true });
-    const recentFiles = entries
-      .filter((e) => e.isFile() && !e.name.startsWith('.'))
-      .map((e) => ({
-        name: e.name,
-        mtime: fs.statSync(path.join(groupDir, e.name)).mtimeMs,
-      }))
-      .filter((f) => f.mtime > cutoff)
-      .sort((a, b) => b.mtime - a.mtime)
-      .slice(0, 10);
-    if (recentFiles.length > 0) {
-      const listing = recentFiles
-        .map(
-          (f) =>
-            `  ${f.name} (${Math.round((Date.now() - f.mtime) / 60000)}m ago)`,
-        )
-        .join('\n');
-      enrichedPrompt += `\n\n<recent_files>\nFiles recently created/modified in your workspace:\n${listing}\nCheck these before creating new files on the same topic.\n</recent_files>`;
+    const logFile = path.join(GROUPS_DIR, ctx.group.folder, 'memory', 'log.md');
+    if (!fs.existsSync(logFile)) return;
+    const today = new Date().toISOString().slice(0, 10);
+    const logContent = fs.readFileSync(logFile, 'utf-8');
+    const taskSummary = currentTasks[ctx.chatJid] || ctx.prompt.slice(0, 120);
+    const entry = `- [auto] Handled: ${taskSummary.replace(/\n/g, ' ')}`;
+    if (logContent.includes(`## ${today}`)) {
+      const updated = logContent.replace(
+        `## ${today}`,
+        `## ${today}\n${entry}`,
+      );
+      fs.writeFileSync(logFile, updated);
+    } else {
+      const updated = logContent.replace(
+        '---\n',
+        `---\n\n## ${today}\n${entry}\n`,
+      );
+      fs.writeFileSync(logFile, updated);
     }
   } catch {
-    /* ignore — non-critical */
+    // Non-critical — don't fail the session over a log write.
   }
+}
 
-  try {
-    const output = await runContainerAgent(
-      group,
-      {
-        prompt: enrichedPrompt,
-        sessionId,
-        groupFolder: group.folder,
-        chatJid,
-        isMain,
-        assistantName: ASSISTANT_NAME,
-      },
-      (proc, containerName) => {
-        queue.registerProcess(chatJid, proc, containerName, group.folder);
-        if (proc.pid) {
-          trackAgentPid(proc.pid);
-          proc.once('exit', () => untrackAgentPid(proc.pid!));
-        }
-      },
-      wrappedOnOutput,
-    );
+async function processGroupMessages(chatJid: string): Promise<boolean> {
+  const ctx = prepareBatch(chatJid);
+  if (!ctx) return true;
 
-    if (output.newSessionId) {
-      sessions[group.folder] = output.newSessionId;
-      setSession(group.folder, output.newSessionId);
-    }
+  maybeResetStaleSession(ctx);
 
-    if (output.status === 'error') {
-      // If the agent timed out without producing any output and returned no new
-      // session ID, the existing session is likely broken (e.g. unmatched tool_use
-      // from a sub-agent that outlived the idle timeout). Clear it so the next
-      // retry starts fresh instead of hanging on the same broken state.
-      const isIdleTimeout = output.error?.includes('idle timeout');
-      if (isIdleTimeout && !output.newSessionId && sessions[group.folder]) {
-        logger.warn(
-          { group: group.name, clearedSession: sessions[group.folder] },
-          'Idle timeout with no output — clearing session to prevent resume hang',
-        );
-        delete sessions[group.folder];
-        deleteSession(group.folder);
-      }
-      // If the SDK returned error_during_execution on session resume, the session
-      // transcript is missing or corrupt. Clear it so the next message starts fresh
-      // rather than retrying the same broken session ID indefinitely.
-      const isExecError =
-        output.error?.includes('error_during_execution') ||
-        output.error?.includes('exited with code 1');
-      if (isExecError && sessionId && sessions[group.folder] === sessionId) {
-        logger.warn(
-          { group: group.name, clearedSession: sessionId },
-          'Execution error on session resume — clearing broken session',
-        );
-        delete sessions[group.folder];
-        deleteSession(group.folder);
-      }
-      logger.error(
-        { group: group.name, error: output.error },
-        'Container agent error',
-      );
-      return 'error';
-    }
+  logger.info(
+    { group: ctx.group.name, messageCount: ctx.messages.length },
+    'Processing messages',
+  );
 
-    return 'success';
-  } catch (err) {
-    logger.error({ group: group.name, err }, 'Agent error');
-    return 'error';
-  }
+  await ctx.channel.setTyping?.(ctx.chatJid, true);
+
+  if (await tryFastPathHandle(ctx)) return true;
+  if (await tryBudgetGate(ctx)) return true;
+
+  const outcome = await runFullAgentTurn(ctx);
+  if (outcome.hadError) return handleAgentError(ctx, outcome);
+
+  consecutiveFailures[ctx.chatJid] = 0;
+  appendMemoryLog(ctx, outcome);
+  return true;
 }
 
 async function startMessageLoop(): Promise<void> {
@@ -533,34 +572,14 @@ async function startMessageLoop(): Promise<void> {
             if (!hasTrigger) continue;
           }
 
-          const allPending = getMessagesSince(
-            chatJid,
-            lastAgentTimestamp[chatJid] ||
-              getLastBotMessageTimestamp(chatJid) ||
-              '',
-            ASSISTANT_NAME,
-            MAX_MESSAGES_PER_PROMPT,
-          );
-          const messagesToSend =
-            allPending.length > 0 ? allPending : groupMessages;
-          const formatted = formatMessages(messagesToSend);
-
-          if (queue.sendMessage(chatJid, formatted)) {
-            logger.debug(
-              { chatJid, count: messagesToSend.length },
-              'Piped messages to active container',
-            );
-            lastAgentTimestamp[chatJid] =
-              messagesToSend[messagesToSend.length - 1].timestamp;
-            saveState();
-            channel
-              .setTyping?.(chatJid, true)
-              ?.catch((err) =>
-                logger.warn({ chatJid, err }, 'Failed to set typing indicator'),
-              );
-          } else {
-            queue.enqueueMessageCheck(chatJid);
-          }
+          // Always enqueue. The earlier "pipe into a running agent via IPC"
+          // optimization raced with the agent's idle-timeout: if the agent
+          // exited between the pipe-write and the IPC read, the message was
+          // silently lost. Fresh-spawn on drain is a couple of seconds slower
+          // for rapid follow-ups but never drops messages. The agent-runner's
+          // `drainIpcInput` at startup also picks up any orphan IPC files
+          // from the previous run, so prior losses self-heal on next spawn.
+          queue.enqueueMessageCheck(chatJid);
         }
       }
     } catch (err) {
@@ -591,147 +610,6 @@ function recoverPendingMessages(): void {
 }
 
 // Hold the lock fd for process lifetime — OS releases it on exit/crash
-let lockFd: number | null = null;
-
-function acquirePidLock(): void {
-  const pidFile = path.join(DATA_DIR, 'ghostclaw.pid');
-  const lockFile = path.join(DATA_DIR, 'ghostclaw.lock');
-  fs.mkdirSync(DATA_DIR, { recursive: true });
-
-  // Try to get an exclusive lock via O_EXCL on a separate lock file.
-  // If another process holds the lock file open, we detect it via the PID check below.
-  // The lock file is held open for the process lifetime and released by the OS on exit.
-  try {
-    lockFd = fs.openSync(
-      lockFile,
-      fs.constants.O_WRONLY | fs.constants.O_CREAT,
-      0o644,
-    );
-    fs.writeSync(lockFd, String(process.pid));
-    fs.fsyncSync(lockFd);
-    // Intentionally not closing — held for process lifetime
-  } catch {
-    logger.error('Failed to acquire lock file');
-    process.exit(1);
-  }
-
-  // Kill any existing process from the PID file
-  try {
-    const oldPid = parseInt(fs.readFileSync(pidFile, 'utf-8').trim(), 10);
-    if (oldPid && oldPid !== process.pid) {
-      try {
-        process.kill(oldPid, 0);
-        logger.warn({ oldPid }, 'Killing existing GhostClaw process');
-        process.kill(oldPid, 'SIGTERM');
-        const start = Date.now();
-        while (Date.now() - start < 3000) {
-          try {
-            process.kill(oldPid, 0);
-          } catch {
-            break;
-          }
-          Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 100);
-        }
-        try {
-          process.kill(oldPid, 'SIGKILL');
-        } catch {
-          /* already dead */
-        }
-      } catch {
-        /* process doesn't exist, fine */
-      }
-    }
-  } catch {
-    /* no pid file, fine */
-  }
-
-  fs.writeFileSync(pidFile, String(process.pid));
-
-  // Double-check after a short delay to catch races
-  setTimeout(() => {
-    try {
-      const currentPid = parseInt(fs.readFileSync(pidFile, 'utf-8').trim(), 10);
-      if (currentPid !== process.pid) {
-        logger.error(
-          { currentPid, ourPid: process.pid },
-          'Another instance overwrote PID lock — exiting to prevent duplicates',
-        );
-        process.exit(1);
-      }
-    } catch {
-      /* pid file gone, we're being replaced */
-      process.exit(1);
-    }
-  }, 500);
-}
-
-function releasePidLock(): void {
-  const pidFile = path.join(DATA_DIR, 'ghostclaw.pid');
-  try {
-    fs.unlinkSync(pidFile);
-  } catch {
-    /* ignore */
-  }
-}
-
-const agentPidsFile = path.join(DATA_DIR, 'agent-pids.json');
-
-function readAgentPids(): number[] {
-  try {
-    const raw: unknown = JSON.parse(fs.readFileSync(agentPidsFile, 'utf-8'));
-    if (!Array.isArray(raw)) return [];
-    // Accept only positive integers — 0/negative have process-group semantics on POSIX
-    return raw.filter(
-      (v): v is number => typeof v === 'number' && Number.isInteger(v) && v > 0,
-    );
-  } catch {
-    return [];
-  }
-}
-
-function writeAgentPids(pids: number[]): void {
-  try {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
-    fs.writeFileSync(agentPidsFile, JSON.stringify(pids));
-  } catch {
-    /* ignore */
-  }
-}
-
-function trackAgentPid(pid: number): void {
-  const pids = readAgentPids();
-  if (!pids.includes(pid)) {
-    pids.push(pid);
-    writeAgentPids(pids);
-  }
-}
-
-function untrackAgentPid(pid: number): void {
-  const pids = readAgentPids().filter((p) => p !== pid);
-  writeAgentPids(pids);
-}
-
-function cleanupOrphanedAgents(): void {
-  const pids = readAgentPids();
-  if (pids.length === 0) return;
-
-  let killed = 0;
-  for (const pid of pids) {
-    try {
-      process.kill(pid, 0); // throws if dead
-      process.kill(pid, 'SIGKILL');
-      killed++;
-      logger.warn({ pid }, 'Killed orphaned agent process from previous run');
-    } catch {
-      /* already dead */
-    }
-  }
-  writeAgentPids([]);
-  if (killed > 0) {
-    logger.info({ killed }, 'Orphan agent cleanup complete');
-  }
-}
-
 function pruneSessionData(): void {
   const sessionsDir = path.join(DATA_DIR, 'sessions');
   if (!fs.existsSync(sessionsDir)) return;
@@ -844,256 +722,22 @@ async function main(): Promise<void> {
       }
       return queue.killAgent(chatJid);
     },
-    onReset: async (chatJid: string) => {
-      const report: string[] = [];
-
-      // 1. Kill all active agents
-      const status = queue.getStatus();
-      for (const jid of Object.keys(registeredGroups)) {
-        queue.clearQueue(jid);
-        queue.killAgent(jid);
-      }
-      report.push(
-        `Killed ${status.active} agent(s), cleared ${status.waiting} queued`,
-      );
-
-      // 2. Clear all scheduled/Ralph tasks
-      const { getAllTasks: getTasks } = await import('./db.js');
-      const tasks = getTasks();
-      let taskCount = 0;
-      for (const task of tasks) {
-        const { deleteTask } = await import('./db.js');
-        deleteTask(task.id);
-        taskCount++;
-      }
-      report.push(`Cleared ${taskCount} scheduled task(s)`);
-
-      // 3. Wipe all session data
-      const sessionsDir = path.join(DATA_DIR, 'sessions');
-      if (fs.existsSync(sessionsDir)) {
-        fs.rmSync(sessionsDir, { recursive: true, force: true });
-        fs.mkdirSync(sessionsDir, { recursive: true });
-      }
-      for (const group of Object.values(registeredGroups)) {
-        delete sessions[group.folder];
-        deleteSession(group.folder);
-      }
-      report.push('Wiped all session data');
-
-      // 4. Kill orphaned processes
-      try {
-        const { execSync } = await import('child_process');
-        const procs = execSync("pgrep -f 'agent-runner|claude' || true", {
-          encoding: 'utf-8',
-        }).trim();
-        const pids = procs
-          .split('\n')
-          .map((p) => parseInt(p, 10))
-          .filter((p) => p && p !== process.pid);
-        let killed = 0;
-        for (const pid of pids) {
-          try {
-            process.kill(pid, 'SIGKILL');
-            killed++;
-          } catch {
-            /* already dead */
-          }
-        }
-        if (killed > 0) report.push(`Killed ${killed} orphaned process(es)`);
-      } catch {
-        /* pgrep not available */
-      }
-
-      // 5. Check memory
-      try {
-        const { execSync } = await import('child_process');
-        const memInfo = execSync(
-          "ps -o rss= -p $$ | awk '{print int($1/1024)}' || echo 'unknown'",
-          { encoding: 'utf-8' },
-        ).trim();
-        const totalMem = Math.round(
-          parseInt(
-            execSync('sysctl -n hw.memsize', { encoding: 'utf-8' }).trim(),
-            10,
-          ) /
-            1024 /
-            1024 /
-            1024,
-        );
-        report.push(`System memory: ${totalMem}GB total`);
-      } catch {
-        /* ignore */
-      }
-
-      // 6. Advance cursor to latest for all groups
-      for (const [jid] of Object.entries(registeredGroups)) {
-        const now = new Date().toISOString();
-        lastAgentTimestamp[jid] = now;
-      }
-      saveState();
-      report.push('Advanced message cursor to now');
-
-      return `Hard reset complete:\n${report.map((r) => `• ${r}`).join('\n')}`;
-    },
-    onGetStatus: () => {
-      const { execSync } = require('child_process');
-      const status = queue.getStatus();
-      const uptimeMs = Date.now() - startTime;
-      const uptimeMin = Math.floor(uptimeMs / 60000);
-      const uptimeHr = Math.floor(uptimeMin / 60);
-      const uptime =
-        uptimeHr > 0 ? `${uptimeHr}h ${uptimeMin % 60}m` : `${uptimeMin}m`;
-
-      const lines = [
-        `<b>GhostClaw v${require('../package.json').version}</b>`,
-        `Uptime: ${uptime}`,
-        '',
-        `<b>Agents</b>`,
-        `Active: ${status.active} | Queued: ${status.waiting}`,
-      ];
-
-      if (status.groups.length > 0) {
-        for (const g of status.groups) {
-          const group = registeredGroups[g.jid];
-          const name = escapeXml(group?.name || g.jid);
-          const parts: string[] = [];
-          if (g.active) parts.push('running');
-          if (g.queuedTasks > 0) parts.push(`${g.queuedTasks} queued`);
-          if (g.queuedMessages) parts.push('msgs waiting');
-          lines.push(`• ${name}: ${parts.join(', ')}`);
-        }
-      }
-
-      // Scheduled tasks
-      try {
-        const tasks = getAllTasks();
-        if (tasks.length > 0) {
-          lines.push('', `<b>Tasks</b>: ${tasks.length} scheduled`);
-          const ralphTasks = tasks.filter(
-            (t) => t.id.includes('ralph') || t.prompt.includes('RALPH'),
-          );
-          if (ralphTasks.length > 0) {
-            lines.push(`Ralph tasks: ${ralphTasks.length}`);
-          }
-        }
-      } catch {
-        /* ignore */
-      }
-
-      // Processes
-      try {
-        const procs = execSync(
-          "ps aux | grep -E 'claude|agent-runner' | grep -v grep | wc -l",
-          { encoding: 'utf-8' },
-        ).trim();
-        const count = parseInt(procs, 10) || 0;
-        lines.push('', `<b>Processes</b>`);
-        lines.push(`Claude/agent processes: ${count}`);
-      } catch {
-        /* ignore */
-      }
-
-      // Memory
-      try {
-        const vmStat = execSync('vm_stat', { encoding: 'utf-8' });
-        const pageSize = 16384;
-        const freeMatch = vmStat.match(/Pages free:\s+(\d+)/);
-        const activeMatch = vmStat.match(/Pages active:\s+(\d+)/);
-        const inactiveMatch = vmStat.match(/Pages inactive:\s+(\d+)/);
-        const wiredMatch = vmStat.match(/Pages wired down:\s+(\d+)/);
-        if (freeMatch && activeMatch && wiredMatch) {
-          const usedGB =
-            ((parseInt(activeMatch[1], 10) + parseInt(wiredMatch[1], 10)) *
-              pageSize) /
-            1024 /
-            1024 /
-            1024;
-          const totalGB = 16;
-          const pct = Math.round((usedGB / totalGB) * 100);
-          lines.push('', `<b>Memory</b>`);
-          lines.push(
-            `${usedGB.toFixed(1)}GB / ${totalGB}GB (${pct}%)${pct > 85 ? ' ⚠️' : ''}`,
-          );
-        }
-      } catch {
-        /* ignore */
-      }
-
-      // Session size
-      try {
-        const sessSize = execSync(
-          `du -sh ${path.join(DATA_DIR, 'sessions')} 2>/dev/null | cut -f1`,
-          { encoding: 'utf-8' },
-        ).trim();
-        lines.push('', `<b>Sessions</b>`);
-        lines.push(`Size: ${sessSize}`);
-      } catch {
-        /* ignore */
-      }
-
-      // Today's errors — categorised
-      try {
-        const logFile = path.join(process.cwd(), 'logs', 'ghostclaw.log');
-        if (fs.existsSync(logFile)) {
-          const today = new Date().toISOString().slice(0, 10);
-          const errorLines = execSync(
-            `grep "ERROR" "${logFile}" 2>/dev/null || true`,
-            { encoding: 'utf-8', maxBuffer: 5 * 1024 * 1024 },
-          )
-            .split('\n')
-            .filter((l: string) => l.includes(today));
-
-          const categories: Record<string, number> = {};
-          for (const line of errorLines) {
-            const clean = line.replace(/\x1b\[[0-9;]*m/g, '');
-            if (/idle timeout/i.test(clean)) {
-              categories['Idle timeouts'] =
-                (categories['Idle timeouts'] || 0) + 1;
-            } else if (/absolute timeout/i.test(clean)) {
-              categories['Absolute timeouts'] =
-                (categories['Absolute timeouts'] || 0) + 1;
-            } else if (/rate.limit|429/i.test(clean)) {
-              categories['Rate limits'] = (categories['Rate limits'] || 0) + 1;
-            } else if (/exit.*code|exited/i.test(clean)) {
-              categories['Agent crashes'] =
-                (categories['Agent crashes'] || 0) + 1;
-            } else if (/cursor|retry spiral/i.test(clean)) {
-              categories['Retry spirals'] =
-                (categories['Retry spirals'] || 0) + 1;
-            } else {
-              categories['Other'] = (categories['Other'] || 0) + 1;
-            }
-          }
-
-          lines.push('', `<b>Errors today</b>`);
-          const total = errorLines.length;
-          if (total === 0) {
-            lines.push('None ✓');
-          } else {
-            lines.push(`Total: ${total}`);
-            for (const [cat, count] of Object.entries(categories)) {
-              lines.push(`• ${cat}: ${count}`);
-            }
-          }
-        }
-      } catch {
-        /* ignore */
-      }
-
-      return lines.join('\n');
-    },
+    onReset: () =>
+      runHardReset({
+        queue,
+        registeredGroups,
+        sessions,
+        lastAgentTimestamp,
+        saveState,
+      }),
+    onGetStatus: () =>
+      buildStatusReport({ queue, registeredGroups, startTime }),
   };
 
   if (TELEGRAM_BOT_TOKEN) {
     const telegram = new TelegramChannel(TELEGRAM_BOT_TOKEN, channelOpts);
     channels.push(telegram);
     await telegram.connect();
-  }
-
-  if (!TELEGRAM_ONLY) {
-    whatsapp = new WhatsAppChannel(channelOpts);
-    channels.push(whatsapp);
-    await whatsapp.connect();
   }
 
   const mainGroupJid = Object.keys(registeredGroups).find(
@@ -1115,8 +759,8 @@ async function main(): Promise<void> {
     registeredGroups: () => registeredGroups,
     getSessions: () => sessions,
     queue,
-    onProcess: (groupJid, proc, containerName, groupFolder) => {
-      queue.registerProcess(groupJid, proc, containerName, groupFolder);
+    onProcess: (groupJid, proc, processName, groupFolder) => {
+      queue.registerProcess(groupJid, proc, processName, groupFolder);
       if (proc.pid) {
         trackAgentPid(proc.pid);
         proc.once('exit', () => untrackAgentPid(proc.pid!));
@@ -1150,8 +794,6 @@ async function main(): Promise<void> {
     },
     registeredGroups: () => registeredGroups,
     registerGroup,
-    syncGroupMetadata: (force) =>
-      whatsapp?.syncGroupMetadata(force) ?? Promise.resolve(),
     getAvailableGroups,
     writeGroupsSnapshot: (gf, im, ag, rj) =>
       writeGroupsSnapshot(gf, im, ag, rj),

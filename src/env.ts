@@ -40,3 +40,28 @@ export function readEnvFile(keys: string[]): Record<string, string> {
 
   return result;
 }
+
+/**
+ * Set or replace a key=value line in the `.env` file and mirror the change
+ * into `process.env` so running code picks it up without a restart.
+ *
+ * Silently no-ops on I/O failure — persisting a preference shouldn't bring
+ * down the caller. Callers that care should read `.env` back to verify.
+ */
+export function persistEnvKey(key: string, value: string): void {
+  process.env[key] = value;
+  const envPath = path.join(process.cwd(), '.env');
+  try {
+    const existing = fs.existsSync(envPath)
+      ? fs.readFileSync(envPath, 'utf-8')
+      : '';
+    const line = `${key}=${value}`;
+    const pattern = new RegExp(`^${key}=.*$`, 'm');
+    const updated = pattern.test(existing)
+      ? existing.replace(pattern, line)
+      : existing.trimEnd() + `\n${line}\n`;
+    fs.writeFileSync(envPath, updated);
+  } catch (err) {
+    logger.warn({ err, key }, 'Failed to persist env key');
+  }
+}

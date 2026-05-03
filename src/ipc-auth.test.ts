@@ -58,7 +58,6 @@ beforeEach(() => {
       setRegisteredGroup(jid, group);
       // Mock the fs.mkdirSync that registerGroup does
     },
-    syncGroupMetadata: async () => {},
     getAvailableGroups: () => [],
     writeGroupsSnapshot: () => {},
   };
@@ -362,21 +361,6 @@ describe('register_group authorization', () => {
     );
 
     expect(groups['new@g.us']).toBeUndefined();
-  });
-});
-
-// --- refresh_groups authorization ---
-
-describe('refresh_groups authorization', () => {
-  it('non-main group cannot trigger refresh', async () => {
-    // This should be silently blocked (no crash, no effect)
-    await processTaskIpc(
-      { type: 'refresh_groups' },
-      'other-group',
-      false,
-      deps,
-    );
-    // If we got here without error, the auth gate worked
   });
 });
 

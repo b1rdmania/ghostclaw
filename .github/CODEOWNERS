@@ -1,6 +1,7 @@
 # Core code
 /src/ @b1rdmania
-/container/ @b1rdmania
+/agent-runner/ @b1rdmania
+/public/ @b1rdmania
 /skills-engine/ @b1rdmania
 /package.json @b1rdmania
 /package-lock.json @b1rdmania

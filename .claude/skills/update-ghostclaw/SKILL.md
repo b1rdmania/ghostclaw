@@ -73,7 +73,7 @@ If there are merge conflicts, stop. Tell the user which files conflict and that 
 npm install
 ```
 
-This also runs the `postinstall` script which bootstraps `container/agent-runner`.
+This also runs the `postinstall` script which bootstraps `agent-runner`.
 
 Get the new version:
 

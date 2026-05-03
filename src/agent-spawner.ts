@@ -1,6 +1,6 @@
 /**
- * Agent Runner for GhostClaw
- * Spawns agent execution as direct Node.js processes (no containers)
+ * Agent Spawner for GhostClaw.
+ * Spawns the agent runtime as a direct Node.js child process.
  */
 import { ChildProcess, spawn, execSync } from 'child_process';
 import fs from 'fs';
@@ -9,7 +9,7 @@ import path from 'path';
 import {
   AGENT_ABSOLUTE_TIMEOUT,
   AGENT_IDLE_TIMEOUT,
-  CONTAINER_MAX_OUTPUT_SIZE,
+  MAX_AGENT_OUTPUT_SIZE,
   DATA_DIR,
   GROUPS_DIR,
 } from './config.js';
@@ -23,7 +23,7 @@ const OUTPUT_START_MARKER = '---GHOSTCLAW_OUTPUT_START---';
 const OUTPUT_END_MARKER = '---GHOSTCLAW_OUTPUT_END---';
 const HEARTBEAT_MARKER = '---GHOSTCLAW_HEARTBEAT---';
 
-export interface ContainerInput {
+export interface AgentInput {
   prompt: string;
   sessionId?: string;
   groupFolder: string;
@@ -34,83 +34,35 @@ export interface ContainerInput {
   secrets?: Record<string, string>;
 }
 
-export interface ContainerOutput {
+export interface AgentOutput {
   status: 'success' | 'error';
   result: string | null;
   newSessionId?: string;
   error?: string;
-}
-
-/**
- * Read the Claude Code OAuth access token from the macOS keychain.
- * Claude Code refreshes this automatically; reading it here ensures we always
- * use the current token even after the ~24h access token expiry.
- * Returns undefined if not on macOS or keychain read fails.
- */
-function readOAuthTokenFromKeychain(): string | undefined {
-  try {
-    const raw = execSync(
-      'security find-generic-password -s "Claude Code-credentials" -w',
-      { stdio: ['ignore', 'pipe', 'ignore'] },
-    )
-      .toString()
-      .trim();
-    const parsed = JSON.parse(raw);
-    const token = parsed?.claudeAiOauth?.accessToken;
-    if (typeof token === 'string' && token.length > 0) return token;
-  } catch {
-    // Not macOS, keychain locked, or entry missing — fall back to .env
-  }
-  return undefined;
+  usage?: {
+    input_tokens: number;
+    output_tokens: number;
+    cache_creation_input_tokens?: number;
+    cache_read_input_tokens?: number;
+    cost_usd?: number;
+    model?: string;
+  };
 }
 
 /**
  * Read allowed secrets from .env for passing to the agent via stdin.
  * Secrets are never written to disk.
- * The OAuth token is always pulled fresh from the macOS keychain so it
- * stays current after the ~24h access token rotation.
+ *
+ * Auth: ANTHROPIC_API_KEY is required. OAuth/Max login is no longer supported.
  */
 function readSecrets(): Record<string, string> {
-  const secrets = readEnvFile([
-    'CLAUDE_CODE_OAUTH_TOKEN',
+  return readEnvFile([
     'ANTHROPIC_API_KEY',
     'ANTHROPIC_BASE_URL',
     'ANTHROPIC_AUTH_TOKEN',
     'ELEVENLABS_API_KEY',
     'ELEVENLABS_VOICE_ID',
   ]);
-
-  // Prefer keychain token over .env — keychain is always current.
-  // Also write it back to .env so a reboot with a locked keychain still
-  // has a reasonably recent token to fall back on.
-  const keychainToken = readOAuthTokenFromKeychain();
-  if (keychainToken) {
-    secrets.CLAUDE_CODE_OAUTH_TOKEN = keychainToken;
-    writeOAuthTokenToEnv(keychainToken);
-  }
-
-  return secrets;
-}
-
-/**
- * Write the OAuth token back to .env so it stays fresh for reboot scenarios
- * where the keychain may be locked before first login.
- * Silently no-ops if the file can't be read/written.
- */
-function writeOAuthTokenToEnv(token: string): void {
-  const envPath = path.join(process.cwd(), '.env');
-  try {
-    const content = fs.readFileSync(envPath, 'utf-8');
-    const updated = content.replace(
-      /^CLAUDE_CODE_OAUTH_TOKEN=.*$/m,
-      `CLAUDE_CODE_OAUTH_TOKEN=${token}`,
-    );
-    if (updated !== content) {
-      fs.writeFileSync(envPath, updated);
-    }
-  } catch {
-    // .env missing or unwritable — not fatal
-  }
 }
 
 /**
@@ -226,8 +178,8 @@ function ensureGroupDirs(
     }
   }
 
-  // Sync skills from container/skills/ into each group's .claude/skills/
-  const skillsSrc = path.join(projectRoot, 'container', 'skills');
+  // Sync shared agent-runner skills into each group's .claude/skills/
+  const skillsSrc = path.join(projectRoot, 'agent-runner', 'skills');
   const skillsDst = path.join(groupSessionsDir, 'skills');
   if (fs.existsSync(skillsSrc)) {
     for (const skillDir of fs.readdirSync(skillsSrc)) {
@@ -239,12 +191,7 @@ function ensureGroupDirs(
   }
 
   // Copy agent-runner source into a per-group writable location
-  const agentRunnerSrc = path.join(
-    projectRoot,
-    'container',
-    'agent-runner',
-    'src',
-  );
+  const agentRunnerSrc = path.join(projectRoot, 'agent-runner', 'src');
   const agentRunnerDir = path.join(
     DATA_DIR,
     'sessions',
@@ -263,7 +210,7 @@ function ensureGroupDirs(
  * Compiles TypeScript on-the-fly if dist doesn't exist.
  */
 function getAgentRunnerEntrypoint(): string {
-  const agentRunnerRoot = path.join(process.cwd(), 'container', 'agent-runner');
+  const agentRunnerRoot = path.join(process.cwd(), 'agent-runner');
   const distEntry = path.join(agentRunnerRoot, 'dist', 'index.js');
 
   if (!fs.existsSync(distEntry)) {
@@ -274,12 +221,12 @@ function getAgentRunnerEntrypoint(): string {
   return distEntry;
 }
 
-export async function runContainerAgent(
+export async function spawnAgentProcess(
   group: RegisteredGroup,
-  input: ContainerInput,
-  onProcess: (proc: ChildProcess, containerName: string) => void,
-  onOutput?: (output: ContainerOutput) => Promise<void>,
-): Promise<ContainerOutput> {
+  input: AgentInput,
+  onProcess: (proc: ChildProcess, processName: string) => void,
+  onOutput?: (output: AgentOutput) => Promise<void>,
+): Promise<AgentOutput> {
   const startTime = Date.now();
 
   const groupDir = resolveGroupFolderPath(group.folder);
@@ -297,16 +244,15 @@ export async function runContainerAgent(
   // Global memory directory
   const globalDir = path.join(GROUPS_DIR, 'global');
 
-  // Additional mount directories (for extra CLAUDE.md files)
+  // Extra directories whose CLAUDE.md files should be appended to the agent's
+  // system context (configured per group via `extraDirs`).
   const extraDirs: string[] = [];
-  if (group.containerConfig?.additionalMounts) {
-    for (const mount of group.containerConfig.additionalMounts) {
-      const expandedPath = mount.hostPath.startsWith('~/')
-        ? path.join(process.env.HOME || '', mount.hostPath.slice(2))
-        : path.resolve(mount.hostPath);
-      if (fs.existsSync(expandedPath)) {
-        extraDirs.push(expandedPath);
-      }
+  for (const raw of group.extraDirs ?? []) {
+    const expanded = raw.startsWith('~/')
+      ? path.join(process.env.HOME || '', raw.slice(2))
+      : path.resolve(raw);
+    if (fs.existsSync(expanded)) {
+      extraDirs.push(expanded);
     }
   }
 
@@ -390,7 +336,7 @@ export async function runContainerAgent(
       if (!filtered.trim() && !chunk.includes(OUTPUT_START_MARKER)) return;
 
       if (!stdoutTruncated) {
-        const remaining = CONTAINER_MAX_OUTPUT_SIZE - stdout.length;
+        const remaining = MAX_AGENT_OUTPUT_SIZE - stdout.length;
         if (filtered.length > remaining) {
           stdout += filtered.slice(0, remaining);
           stdoutTruncated = true;
@@ -416,7 +362,7 @@ export async function runContainerAgent(
           parseBuffer = parseBuffer.slice(endIdx + OUTPUT_END_MARKER.length);
 
           try {
-            const parsed: ContainerOutput = JSON.parse(jsonStr);
+            const parsed: AgentOutput = JSON.parse(jsonStr);
             if (parsed.newSessionId) {
               newSessionId = parsed.newSessionId;
             }
@@ -443,7 +389,7 @@ export async function runContainerAgent(
         if (line) logger.debug({ agent: group.folder }, line);
       }
       if (stderrTruncated) return;
-      const remaining = CONTAINER_MAX_OUTPUT_SIZE - stderr.length;
+      const remaining = MAX_AGENT_OUTPUT_SIZE - stderr.length;
       if (chunk.length > remaining) {
         stderr += chunk.slice(0, remaining);
         stderrTruncated = true;
@@ -652,7 +598,7 @@ export async function runContainerAgent(
           jsonLine = lines[lines.length - 1];
         }
 
-        const output: ContainerOutput = JSON.parse(jsonLine);
+        const output: AgentOutput = JSON.parse(jsonLine);
 
         logger.info(
           {
